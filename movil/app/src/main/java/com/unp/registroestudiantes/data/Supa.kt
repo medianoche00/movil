@@ -7,8 +7,8 @@ import io.github.jan.supabase.storage.Storage
 
 /** Cliente único de Supabase (base de datos + almacenamiento de archivos). */
 object Supa {
-    const val PHOTOS_BUCKET = "photos"
-    const val CVS_BUCKET = "cvs"
+    const val PHOTOS_BUCKET = "student-photos"
+    const val CVS_BUCKET = "student-cvs"
 
     val client = createSupabaseClient(
         supabaseUrl = BuildConfig.SUPABASE_URL,

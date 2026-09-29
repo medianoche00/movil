@@ -57,6 +57,8 @@ fun AppNav() {
             composable(FORM_NEW) {
                 FormScreen(
                     editing = null, saving = state.saving,
+                    errorMessage = state.actionError,
+                    onClearError = { vm.clearError() },
                     onCancel = { nav.popBackStack() },
                     onSave = { input ->
                         vm.save(null, input) { newId ->
@@ -70,6 +72,8 @@ fun AppNav() {
                 val editing = state.students.firstOrNull { it.id == id }
                 FormScreen(
                     editing = editing, saving = state.saving,
+                    errorMessage = state.actionError,
+                    onClearError = { vm.clearError() },
                     onCancel = { nav.popBackStack() },
                     onSave = { input ->
                         vm.save(id, input) { savedId ->

@@ -31,10 +31,21 @@ import com.unp.registroestudiantes.viewmodel.FormInput
 fun FormScreen(
     editing: Student?,
     saving: Boolean,
+    errorMessage: String? = null,
+    onClearError: () -> Unit = {},
     onCancel: () -> Unit,
     onSave: (FormInput) -> Unit
 ) {
     val ctx = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            onClearError()
+        }
+    }
+
     var name by remember { mutableStateOf(editing?.name.orEmpty()) }
     var age by remember { mutableStateOf(editing?.age?.toString().orEmpty()) }
     var career by remember { mutableStateOf(editing?.career.orEmpty()) }
@@ -55,12 +66,15 @@ fun FormScreen(
     val careerError = career.isBlank()
     val canSave = !nameError && !ageError && !careerError && !saving
 
-    Scaffold(topBar = {
-        TopAppBar(
-            title = { Text(if (editing == null) "Nuevo estudiante" else "Editar estudiante") },
-            navigationIcon = { TextButton(onClick = onCancel) { Text("Cancelar") } }
-        )
-    }) { padding ->
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
+            TopAppBar(
+                title = { Text(if (editing == null) "Nuevo estudiante" else "Editar estudiante") },
+                navigationIcon = { TextButton(onClick = onCancel) { Text("Cancelar") } }
+            )
+        }
+    ) { padding ->
         Column(
             Modifier.padding(padding).fillMaxSize().padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)

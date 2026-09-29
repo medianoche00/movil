@@ -9,9 +9,9 @@ data class Keyword(val name: String, val category: String)
  * y arma la reseña con plantillas de texto.
  */
 object CvAnalyzer {
-    const val TECH = "tecnología"
-    const val SOFT = "habilidad blanda"
-    const val EXP = "experiencia"
+    const val TECH = "tech"
+    const val SOFT = "soft"
+    const val EXP = "experience"
 
     private val catalog: List<Keyword> =
         listOf(
