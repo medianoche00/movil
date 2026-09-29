@@ -1,0 +1,49 @@
+=== 1) Plugin de serialización ===
+Con version catalog (libs.versions.toml), en [plugins]:
+  kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+En build.gradle.kts (raíz):   alias(libs.plugins.kotlin.serialization) apply false
+En app/build.gradle.kts:      alias(libs.plugins.kotlin.serialization)
+
+(Sin catalog: id("org.jetbrains.kotlin.plugin.serialization") version "TU_VERSION_KOTLIN")
+
+=== 2) app/build.gradle.kts ===
+import java.util.Properties
+
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+
+android {
+    defaultConfig {
+        minSdk = 26   // supabase-kt exige mínimo 26
+        buildConfigField("String", "SUPABASE_URL", "\"${localProps.getProperty("SUPABASE_URL", "")}\"")
+        buildConfigField("String", "SUPABASE_KEY", "\"${localProps.getProperty("SUPABASE_KEY", "")}\"")
+    }
+    buildFeatures { compose = true; buildConfig = true }
+}
+
+dependencies {
+    // Supabase (revisa la última versión en github.com/supabase-community/supabase-kt/releases
+    // y usa la misma versión de Ktor que indique)
+    implementation(platform("io.github.jan-tennert.supabase:bom:3.2.2"))
+    implementation("io.github.jan-tennert.supabase:postgrest-kt")
+    implementation("io.github.jan-tennert.supabase:storage-kt")
+    implementation("io.ktor:ktor-client-android:3.1.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+
+    implementation("androidx.navigation:navigation-compose:2.8.9")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
+
+    implementation("io.coil-kt.coil3:coil-compose:3.1.0")
+    implementation("io.coil-kt.coil3:coil-network-okhttp:3.1.0")
+
+    implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+}
+
+=== 3) local.properties (NO subir a Git) ===
+SUPABASE_URL=https://yzhtymmiujawjuytkqkm.supabase.co
+SUPABASE_KEY=<tu anon / publishable key>
