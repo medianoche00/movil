@@ -1,18 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Icono: silueta de persona (estudiante) en blanco -->
+<!-- Birrete universitario (graduation cap) en blanco sobre transparente -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Cabeza -->
+    <!-- Parte superior del birrete: rombo/diamante -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M54,30 a12,12 0 1,1 0.001,0 Z" />
+        android:pathData="M54,18 L92,38 L54,58 L16,38 Z" />
 
-    <!-- Cuerpo / torso -->
+    <!-- Cuerpo del birrete: trapezoide redondeado hacia abajo -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M36,78 C36,60 72,60 72,78 L72,82 L36,82 Z" />
+        android:pathData="M28,46 L28,67 C28,79 40,86 54,86 C68,86 80,79 80,67 L80,46 L54,58 Z" />
+
+    <!-- Borla: línea vertical desde el extremo derecho del diamante -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M92,38 L92,67" />
+
+    <!-- Borla: bola al final -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M92,67 m-7,0 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0" />
 </vector>

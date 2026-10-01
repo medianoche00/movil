@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Fondo azul del icono (color primario de la app) -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
-    <solid android:color="#0A84FF" />
+    <gradient
+        android:angle="135"
+        android:startColor="#1A72FF"
+        android:endColor="#003DAA"
+        android:type="linear" />
 </shape>

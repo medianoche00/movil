@@ -23,6 +23,7 @@ gradle-app.setting
 
 # Android Studio / IntelliJ IDEA
 .idea/
+.kotlin/
 *.iml
 *.iws
 *.ipr
