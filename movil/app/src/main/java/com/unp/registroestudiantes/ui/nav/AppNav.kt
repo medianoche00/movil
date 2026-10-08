@@ -15,10 +15,12 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.unp.registroestudiantes.ui.screens.ContactsScreen
 import com.unp.registroestudiantes.ui.screens.DetailScreen
 import com.unp.registroestudiantes.ui.screens.FormScreen
 import com.unp.registroestudiantes.ui.screens.ListScreen
 import com.unp.registroestudiantes.ui.screens.SplashScreen
+import com.unp.registroestudiantes.viewmodel.ContactViewModel
 import com.unp.registroestudiantes.viewmodel.StudentViewModel
 
 /*
@@ -60,6 +62,7 @@ private const val LIST      = "list"
 private const val FORM_NEW  = "form"
 private const val FORM_EDIT = "form/{id}"
 private const val DETAIL    = "detail/{id}"
+private const val CONTACTS  = "contacts"
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -96,7 +99,18 @@ fun AppNav() {
                     loadError = state.loadError,
                     onRetry = { vm.load() },
                     onAdd = { nav.navigate(FORM_NEW) },
-                    onOpen = { s -> nav.navigate("detail/${s.id}") }
+                    onOpen = { s -> nav.navigate("detail/${s.id}") },
+                    onOpenContacts = { nav.navigate(CONTACTS) }
+                )
+            }
+            composable(CONTACTS) {
+                val contactVm: ContactViewModel = viewModel()
+                val contactsState by contactVm.contacts.collectAsState()
+                ContactsScreen(
+                    contacts = contactsState,
+                    onBack = { nav.popBackStack() },
+                    onAddContact = { name, phone, email -> contactVm.addContact(name, phone, email) },
+                    onDeleteContact = { id -> contactVm.deleteContact(id) }
                 )
             }
 

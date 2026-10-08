@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ContactPhone
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Person
@@ -75,7 +76,8 @@ fun ListScreen(
     loadError: String?,
     onRetry: () -> Unit,
     onAdd: () -> Unit,
-    onOpen: (Student) -> Unit
+    onOpen: (Student) -> Unit,
+    onOpenContacts: () -> Unit
 ) {
     // Estado del texto escrito en la barra de busqueda
     var query by remember { mutableStateOf("") }
@@ -123,6 +125,13 @@ fun ListScreen(
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }
+                    }
+                    IconButton(onClick = onOpenContacts) {
+                        Icon(
+                            Icons.Default.ContactPhone,
+                            contentDescription = "Agenda de Contactos",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             )

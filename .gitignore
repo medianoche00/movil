@@ -16,8 +16,10 @@ bin/
 gen/
 out/
 
-# Gradle files
+# Gradle / Kotlin files
 .gradle/
+.kotlin/
+**/.kotlin/
 gradle-app.setting
 !gradle-wrapper.jar
 
