@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ContactPhone
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
@@ -35,7 +36,8 @@ fun ListScreen(
     loadError: String?,
     onRetry: () -> Unit,
     onAdd: () -> Unit,
-    onOpen: (Student) -> Unit
+    onOpen: (Student) -> Unit,
+    onOpenContacts: () -> Unit
 ) {
     var query by remember { mutableStateOf("") }
     val filtered = remember(students, query) {
@@ -45,16 +47,27 @@ fun ListScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = {
-                Column {
-                    Text("Estudiantes")
-                    Text(
-                        "${students.size} registrados",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            TopAppBar(
+                title = {
+                    Column {
+                        Text("Estudiantes")
+                        Text(
+                            "${students.size} registrados",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(onClick = onOpenContacts) {
+                        Icon(
+                            Icons.Default.ContactPhone,
+                            contentDescription = "Agenda de Contactos",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
-            })
+            )
         },
         floatingActionButton = {
             FloatingActionButton(onClick = onAdd, modifier = Modifier.pressScale()) {
