@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -30,6 +31,26 @@ import androidx.compose.ui.unit.dp
 import com.unp.registroestudiantes.data.Contact
 import com.unp.registroestudiantes.ui.theme.pressScale
 
+/*
+ * Archivo: ContactsScreen.kt
+ * Proposito: Interfaz para gestionar la agenda de contactos con validaciones robustas.
+ *
+ * Guia de transicion Desarrollo Web (HTML/JS) -> Jetpack Compose:
+ *
+ * 1. Formularios Controlados:
+ *    En React usariamos estados para los valores de los 'input'. Aqui usamos
+ *    'var nameInput by remember { mutableStateOf("") }' de manera analoga.
+ *
+ * 2. Validaciones Reactivas:
+ *    Evaluamos la validez de los campos en tiempo real (isNameValid, etc.) basados
+ *    en el estado actual. Los errores solo se muestran si el usuario interactua o intenta enviar
+ *    (isSubmittedAttempted), tal como se hace con la propiedad 'touched' en Formik.
+ *
+ * 3. Animaciones de Entrada Escalonadas:
+ *    Se aplican retardos secuenciales a cada tarjeta de la lista basandose en su indice,
+ *    simulando las transiciones fluidas comunes en el ecosistema Apple (iOS).
+ */
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ContactsScreen(
@@ -38,27 +59,21 @@ fun ContactsScreen(
     onAddContact: (name: String, phone: String, email: String) -> Unit,
     onDeleteContact: (id: String) -> Unit
 ) {
-    // Estados para los campos del formulario
     var nameInput by remember { mutableStateOf("") }
     var phoneInput by remember { mutableStateOf("") }
     var emailInput by remember { mutableStateOf("") }
-
-    // Estado para saber si el usuario ya interactuó con el formulario
     var isSubmittedAttempted by remember { mutableStateOf(false) }
 
-    // Estado para la búsqueda por nombre
     var searchQuery by remember { mutableStateOf("") }
-
-    // Estado para el contacto a eliminar
     var contactToDelete by remember { mutableStateOf<Contact?>(null) }
 
-    // --- VALIDACIONES ---
-    val isNameValid = nameInput.trim().length >= 3
+    // Validaciones robustas
+    val namePattern = "^[a-zA-ZáéíóúÁÉÍÓÚñÑ\\s]+$".toRegex()
+    val isNameValid = nameInput.trim().length >= 3 && nameInput.matches(namePattern)
     val isPhoneValid = phoneInput.trim().length == 9 && phoneInput.trim().all { it.isDigit() }
     val isEmailValid = emailInput.isNotBlank() && Patterns.EMAIL_ADDRESS.matcher(emailInput.trim()).matches()
     val isFormValid = isNameValid && isPhoneValid && isEmailValid
 
-    // Filtrar la lista SOLO por Nombre
     val filteredContacts = remember(contacts, searchQuery) {
         if (searchQuery.isBlank()) contacts
         else contacts.filter { it.name.contains(searchQuery.trim(), ignoreCase = true) }
@@ -69,7 +84,7 @@ fun ContactsScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("Lista de Contactos")
+                        Text("Agenda de Contactos")
                         Text(
                             "${contacts.size} registrados",
                             style = MaterialTheme.typography.labelLarge,
@@ -92,45 +107,44 @@ fun ContactsScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // ==========================================
-            // SECCIÓN 1: FORMULARIO DE REGISTRO
-            // ==========================================
             item {
                 ElevatedCard(
-                    shape = MaterialTheme.shapes.medium,
+                    shape = RoundedCornerShape(20.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                            .padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         Text(
-                            text = "Registrar Contacto",
+                            text = "Nuevo Contacto",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
 
-                        // 1. Campo Nombre
                         OutlinedTextField(
                             value = nameInput,
                             onValueChange = { nameInput = it },
-                            label = { Text("Nombre") },
+                            label = { Text("Nombre Completo") },
                             placeholder = { Text("Ej. Juan Pérez") },
                             leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
                             singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
                             isError = isSubmittedAttempted && !isNameValid,
                             supportingText = {
                                 if (isSubmittedAttempted && !isNameValid) {
-                                    Text("El nombre debe tener al menos 3 letras", color = MaterialTheme.colorScheme.error)
+                                    Text(
+                                        "Debe tener al menos 3 caracteres y solo letras.",
+                                        color = MaterialTheme.colorScheme.error
+                                    )
                                 }
                             },
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        // 2. Campo Celular (Máximo 9 dígitos numéricos)
                         OutlinedTextField(
                             value = phoneInput,
                             onValueChange = { input ->
@@ -144,97 +158,98 @@ fun ContactsScreen(
                             leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
                             isError = isSubmittedAttempted && !isPhoneValid,
                             supportingText = {
                                 if (isSubmittedAttempted && !isPhoneValid) {
-                                    Text("El celular debe tener exactamente 9 dígitos", color = MaterialTheme.colorScheme.error)
+                                    Text(
+                                        "Debe contener exactamente 9 dígitos numéricos.",
+                                        color = MaterialTheme.colorScheme.error
+                                    )
                                 }
                             },
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        // 3. Campo Correo
                         OutlinedTextField(
                             value = emailInput,
                             onValueChange = { emailInput = it },
-                            label = { Text("Correo") },
+                            label = { Text("Correo Electrónico") },
                             placeholder = { Text("Ej. contacto@gmail.com") },
                             leadingIcon = { Icon(Icons.Default.Email, contentDescription = null) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                             singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
                             isError = isSubmittedAttempted && !isEmailValid,
                             supportingText = {
                                 if (isSubmittedAttempted && !isEmailValid) {
-                                    Text("Ingrese un correo electrónico válido", color = MaterialTheme.colorScheme.error)
+                                    Text(
+                                        "Ingrese una dirección de correo válida.",
+                                        color = MaterialTheme.colorScheme.error
+                                    )
                                 }
                             },
                             modifier = Modifier.fillMaxWidth()
                         )
 
-                        // 4. Botón Agregar
                         Button(
                             onClick = {
                                 isSubmittedAttempted = true
                                 if (isFormValid) {
                                     onAddContact(nameInput, phoneInput, emailInput)
-                                    // Limpiar campos del formulario
                                     nameInput = ""
                                     phoneInput = ""
                                     emailInput = ""
                                     isSubmittedAttempted = false
                                 }
                             },
+                            shape = RoundedCornerShape(14.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(48.dp)
+                                .height(52.dp)
                                 .pressScale()
                         ) {
                             Icon(Icons.Default.Add, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
-                            Text("Agregar")
+                            Text("Guardar Contacto")
                         }
                     }
                 }
             }
 
-            // ==========================================
-            // SECCIÓN 2: BUSCAR POR NOMBRE
-            // ==========================================
             item {
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    placeholder = { Text("Buscar por Nombre") },
+                    placeholder = { Text("Buscar por nombre...") },
                     singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
 
-            // ==========================================
-            // SECCIÓN 3: LISTA DE CONTACTOS
-            // ==========================================
             if (filteredContacts.isEmpty()) {
                 item {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 32.dp),
+                            .padding(vertical = 40.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(
                                 Icons.Default.Person,
                                 contentDescription = null,
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                             )
-                            Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.height(16.dp))
                             Text(
-                                if (searchQuery.isBlank()) "No hay contactos en la lista"
-                                else "No se encontró ningún contacto con el nombre \"$searchQuery\"",
+                                if (searchQuery.isBlank()) "La agenda está vacía"
+                                else "Sin coincidencias para \"\$searchQuery\"",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodyMedium
+                                style = MaterialTheme.typography.titleMedium
                             )
                         }
                     }
@@ -251,12 +266,12 @@ fun ContactsScreen(
         }
     }
 
-    // Diálogo de confirmación para eliminar
     contactToDelete?.let { contact ->
         AlertDialog(
             onDismissRequest = { contactToDelete = null },
-            title = { Text("¿Eliminar contacto?") },
-            text = { Text("¿Deseas eliminar a ${contact.name} de la lista?") },
+            title = { Text("Eliminar contacto") },
+            text = { Text("¿Estás seguro de que deseas eliminar a ${contact.name}? Esta acción no se puede deshacer.") },
+            shape = RoundedCornerShape(20.dp),
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -276,10 +291,6 @@ fun ContactsScreen(
     }
 }
 
-/**
- * Componente individual para mostrar la tarjeta de cada contacto.
- * Muestra: Nombre, Celular, Correo y Botón de Eliminar (NO EDITAR).
- */
 @Composable
 private fun ContactCardItem(
     index: Int,
@@ -288,16 +299,16 @@ private fun ContactCardItem(
 ) {
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(minOf(index, 8) * 30L)
+        kotlinx.coroutines.delay(minOf(index, 8) * 40L)
         shown = true
     }
 
     AnimatedVisibility(
         visible = shown,
-        enter = fadeIn(tween(250)) + slideInVertically(tween(250)) { it / 4 }
+        enter = fadeIn(tween(300)) + slideInVertically(tween(300)) { it / 3 }
     ) {
         ElevatedCard(
-            shape = MaterialTheme.shapes.medium,
+            shape = RoundedCornerShape(16.dp),
             modifier = Modifier
                 .fillMaxWidth()
                 .pressScale()
@@ -305,44 +316,42 @@ private fun ContactCardItem(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(14.dp),
+                    .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Avatar con la letra inicial
                 Box(
                     modifier = Modifier
-                        .size(46.dp)
+                        .size(52.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
-                    val initial = contact.name.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+                    val initial = contact.name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
                     Text(
                         text = initial,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
 
-                Spacer(Modifier.width(14.dp))
+                Spacer(Modifier.width(16.dp))
 
-                // Información: Nombre, Celular y Correo
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = contact.name,
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
-                    Spacer(Modifier.height(3.dp))
+                    Spacer(Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             Icons.Default.Phone,
                             contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.primary
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.secondary
                         )
-                        Spacer(Modifier.width(4.dp))
+                        Spacer(Modifier.width(6.dp))
                         Text(
                             text = contact.phone,
                             style = MaterialTheme.typography.bodyMedium,
@@ -354,10 +363,10 @@ private fun ContactCardItem(
                         Icon(
                             Icons.Default.Email,
                             contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.primary
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.secondary
                         )
-                        Spacer(Modifier.width(4.dp))
+                        Spacer(Modifier.width(6.dp))
                         Text(
                             text = contact.email,
                             style = MaterialTheme.typography.bodyMedium,
@@ -366,12 +375,14 @@ private fun ContactCardItem(
                     }
                 }
 
-                // Botón SOLO Eliminar (NO EDITAR)
-                IconButton(onClick = onDelete) {
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(40.dp)
+                ) {
                     Icon(
                         Icons.Default.Delete,
                         contentDescription = "Eliminar contacto",
-                        tint = MaterialTheme.colorScheme.error
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f)
                     )
                 }
             }

@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ContactPhone
@@ -77,13 +78,13 @@ fun ListScreen(
     onRetry: () -> Unit,
     onAdd: () -> Unit,
     onOpen: (Student) -> Unit,
-    onOpenContacts: () -> Unit
+    onBack: (() -> Unit)? = null
 ) {
     // Estado del texto escrito en la barra de busqueda
     var query by remember { mutableStateOf("") }
 
     // Estado que define el modo de visualizacion: false = Lista, true = Cuadricula
-    var isGrid by rememberSaveable { mutableStateOf(false) }
+    var isGrid by rememberSaveable { mutableStateOf(true) }
 
     // Filtra la lista en memoria segun el nombre o carrera ingresados
     val filtered = remember(students, query) {
@@ -99,6 +100,16 @@ fun ListScreen(
     Scaffold(
         topBar = {
             TopAppBar(
+                navigationIcon = {
+                    if (onBack != null) {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Volver al menú principal"
+                            )
+                        }
+                    }
+                },
                 title = {
                     Column {
                         Text("Estudiantes")
@@ -125,13 +136,6 @@ fun ListScreen(
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }
-                    }
-                    IconButton(onClick = onOpenContacts) {
-                        Icon(
-                            Icons.Default.ContactPhone,
-                            contentDescription = "Agenda de Contactos",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
                     }
                 }
             )

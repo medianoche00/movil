@@ -19,6 +19,7 @@ import com.unp.registroestudiantes.ui.screens.ContactsScreen
 import com.unp.registroestudiantes.ui.screens.DetailScreen
 import com.unp.registroestudiantes.ui.screens.FormScreen
 import com.unp.registroestudiantes.ui.screens.ListScreen
+import com.unp.registroestudiantes.ui.screens.MenuScreen
 import com.unp.registroestudiantes.ui.screens.SplashScreen
 import com.unp.registroestudiantes.viewmodel.ContactViewModel
 import com.unp.registroestudiantes.viewmodel.StudentViewModel
@@ -58,6 +59,7 @@ import com.unp.registroestudiantes.viewmodel.StudentViewModel
 
 // Constantes de rutas de navegacion
 private const val SPLASH    = "splash"
+private const val MENU      = "menu"
 private const val LIST      = "list"
 private const val FORM_NEW  = "form"
 private const val FORM_EDIT = "form/{id}"
@@ -70,11 +72,13 @@ fun AppNav() {
     // Controlador de la pila de navegacion
     val nav: NavHostController = rememberNavController()
 
-    // Instancia unica del ViewModel compartida por las pantallas
+    // Instancia unica de los ViewModels compartida por las pantallas
     val vm: StudentViewModel = viewModel()
+    val contactVm: ContactViewModel = viewModel()
 
     // Observa el estado reactivo del ViewModel
     val state by vm.state.collectAsState()
+    val contactsState by contactVm.contacts.collectAsState()
 
     SharedTransitionLayout {
         NavHost(navController = nav, startDestination = SPLASH) {
@@ -83,15 +87,25 @@ fun AppNav() {
             composable(SPLASH) {
                 SplashScreen(
                     onFinished = {
-                        // Navega a la lista principal y remueve el Splash del historial
-                        nav.navigate(LIST) {
+                        // Navega al panel principal y remueve el Splash del historial
+                        nav.navigate(MENU) {
                             popUpTo(SPLASH) { inclusive = true }
                         }
                     }
                 )
             }
 
-            // Destino 2: Listado de estudiantes (Lista o Cuadricula)
+            // Destino 2: Panel Principal con selector de los 2 modulos
+            composable(MENU) {
+                MenuScreen(
+                    studentsCount = state.students.size,
+                    contactsCount = contactsState.size,
+                    onOpenStudents = { nav.navigate(LIST) },
+                    onOpenContacts = { nav.navigate(CONTACTS) }
+                )
+            }
+
+            // Destino 3: Listado de estudiantes (Lista o Cuadricula)
             composable(LIST) {
                 ListScreen(
                     students = state.students,
@@ -100,12 +114,10 @@ fun AppNav() {
                     onRetry = { vm.load() },
                     onAdd = { nav.navigate(FORM_NEW) },
                     onOpen = { s -> nav.navigate("detail/${s.id}") },
-                    onOpenContacts = { nav.navigate(CONTACTS) }
+                    onBack = { nav.popBackStack() }
                 )
             }
             composable(CONTACTS) {
-                val contactVm: ContactViewModel = viewModel()
-                val contactsState by contactVm.contacts.collectAsState()
                 ContactsScreen(
                     contacts = contactsState,
                     onBack = { nav.popBackStack() },
