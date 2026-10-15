@@ -113,3 +113,46 @@ create policy "Public access student-cvs"
     on storage.objects for all
     using (bucket_id = 'student-cvs')
     with check (bucket_id = 'student-cvs');
+
+-- ============================================================
+-- 8. Tabla: contacts (Agenda de contactos estilo WhatsApp)
+-- ============================================================
+create table if not exists contacts (
+    id              uuid primary key default gen_random_uuid(),
+    first_name      text not null check (char_length(trim(first_name)) >= 2),
+    last_name       text not null check (char_length(trim(last_name)) >= 2),
+    username        text unique check (username is null or char_length(trim(username)) >= 3),
+    country_code    text not null default '+51',
+    phone           text not null check (char_length(trim(phone)) = 9),
+    email           text,
+    sync_to_phone   boolean not null default false,
+    created_at      timestamptz not null default now(),
+
+    -- Restricción: No duplicar el número dentro del mismo código de país
+    constraint unique_contact_phone unique (country_code, phone),
+
+    -- Restricción: No duplicar la combinación exacta de nombre y apellido
+    constraint unique_contact_fullname unique (first_name, last_name)
+);
+
+-- Índices para optimizar búsquedas por nombre, apellido, usuario y teléfono
+create index if not exists idx_contacts_first_name on contacts(first_name);
+create index if not exists idx_contacts_last_name on contacts(last_name);
+create index if not exists idx_contacts_username on contacts(username);
+create index if not exists idx_contacts_phone on contacts(phone);
+
+-- Seguridad a nivel de fila (Row Level Security - RLS)
+alter table contacts enable row level security;
+
+create policy "Allow all operations on contacts" on contacts
+    for all
+    using (true)
+    with check (true);
+
+-- Inserción de registros iniciales de prueba
+insert into contacts (first_name, last_name, username, country_code, phone, email, sync_to_phone) values
+    ('Juan', 'Pérez', 'juanperez', '+51', '987654321', 'juan.perez@unp.edu.pe', false),
+    ('María', 'López', null, '+51', '912345678', 'maria.lopez@gmail.com', false),
+    ('Carlos', 'Mendoza', 'carlos_m', '+51', '955443322', 'carlos.mendoza@outlook.com', false)
+on conflict do nothing;
+

@@ -1,56 +1,213 @@
 package com.unp.registroestudiantes.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.unp.registroestudiantes.data.Contact
+import com.unp.registroestudiantes.data.ContactInsert
+import com.unp.registroestudiantes.data.ContactRepository
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.util.UUID
 
 /**
- * ViewModel que gestiona la lista de contactos en memoria.
- * Permite agregar nuevos contactos con (nombre, celular, correo) y eliminarlos.
+ * Estado general de la UI para la pantalla de Contactos.
  */
-class ContactViewModel : ViewModel() {
+data class ContactsUiState(
+    val contacts: List<Contact> = emptyList(),
+    val loading: Boolean = false,
+    val saving: Boolean = false,
+    val errorMessage: String? = null,
+    val successMessage: String? = null
+)
 
-    // Lista inicial de contactos de prueba
-    private val _contacts = MutableStateFlow<List<Contact>>(
-        listOf(
-            Contact(
-                name = "Juan Pérez",
-                phone = "987654321",
-                email = "juan.perez@unp.edu.pe"
-            ),
-            Contact(
-                name = "María López",
-                phone = "912345678",
-                email = "maria.lopez@gmail.com"
-            ),
-            Contact(
-                name = "Carlos Mendoza",
-                phone = "955443322",
-                email = "carlos.mendoza@outlook.com"
-            )
-        )
-    )
-    val contacts: StateFlow<List<Contact>> = _contacts.asStateFlow()
+/**
+ * ViewModel que gestiona la agenda de contactos conectada a Supabase.
+ * Provee operaciones reactivas optimistas para listar, agregar y eliminar contactos al instante.
+ */
+class ContactViewModel(
+    private val repository: ContactRepository = ContactRepository()
+) : ViewModel() {
 
-    /**
-     * Agrega un nuevo contacto al inicio de la lista.
-     */
-    fun addContact(name: String, phone: String, email: String) {
-        val newContact = Contact(
-            name = name.trim(),
-            phone = phone.trim(),
-            email = email.trim()
+    private val _uiState = MutableStateFlow(ContactsUiState(loading = true))
+    val uiState: StateFlow<ContactsUiState> = _uiState.asStateFlow()
+
+    // Flujo sincronizado reactivamente para MenuScreen y navegacion
+    val contacts: StateFlow<List<Contact>> = _uiState
+        .map { it.contacts }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = emptyList()
         )
-        _contacts.update { current -> listOf(newContact) + current }
+
+    init {
+        loadContacts()
     }
 
     /**
-     * Elimina un contacto de la lista por su identificador único (id).
+     * Carga todos los contactos directamente desde la tabla 'contacts' en Supabase.
      */
-    fun deleteContact(id: String) {
-        _contacts.update { current -> current.filterNot { it.id == id } }
+    fun loadContacts() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(loading = true, errorMessage = null) }
+            try {
+                val list = withContext(Dispatchers.IO) {
+                    repository.getAll()
+                }
+                _uiState.update { it.copy(contacts = list, loading = false) }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(
+                        loading = false,
+                        errorMessage = "Error al cargar contactos: ${e.localizedMessage ?: "Revise su conexión a Internet"}"
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Registra un nuevo contacto en Supabase con actualizacion optimista e instantanea en la UI.
+     */
+    fun addContact(
+        firstName: String,
+        lastName: String,
+        username: String?,
+        countryCode: String,
+        phone: String,
+        email: String?,
+        syncToPhone: Boolean,
+        onImmediateSuccess: () -> Unit = {},
+        onError: (String) -> Unit = {}
+    ) {
+        val cleanFirstName = firstName.trim()
+        val cleanLastName = lastName.trim()
+        val cleanUsername = username?.trim()?.removePrefix("@")?.takeIf { it.isNotBlank() }
+        val cleanCountryCode = countryCode.trim()
+        val cleanPhone = phone.trim()
+        val cleanEmail = email?.trim()?.takeIf { it.isNotBlank() }
+
+        // 1. Crear un contacto provisional para reflejarlo de inmediato en la lista (0ms de retraso)
+        val tempId = "temp_${UUID.randomUUID()}"
+        val tempContact = Contact(
+            id = tempId,
+            firstName = cleanFirstName,
+            lastName = cleanLastName,
+            username = cleanUsername,
+            countryCode = cleanCountryCode,
+            phone = cleanPhone,
+            email = cleanEmail,
+            syncToPhone = syncToPhone
+        )
+
+        // Reflejar al instante en la lista de la pantalla
+        _uiState.update { current ->
+            current.copy(
+                contacts = listOf(tempContact) + current.contacts,
+                saving = true,
+                errorMessage = null,
+                successMessage = null
+            )
+        }
+
+        // Ejecutar callback inmediato para limpiar inputs y ocultar teclado
+        onImmediateSuccess()
+
+        // 2. Persistir en segundo plano en Supabase
+        viewModelScope.launch {
+            try {
+                val insertData = ContactInsert(
+                    firstName = cleanFirstName,
+                    lastName = cleanLastName,
+                    username = cleanUsername,
+                    countryCode = cleanCountryCode,
+                    phone = cleanPhone,
+                    email = cleanEmail,
+                    syncToPhone = syncToPhone
+                )
+
+                val created = withContext(Dispatchers.IO) {
+                    repository.create(insertData)
+                }
+
+                // Reemplazar el provisional por el definitivo generado en Supabase
+                _uiState.update { current ->
+                    current.copy(
+                        contacts = current.contacts.map { if (it.id == tempId) created else it },
+                        saving = false,
+                        successMessage = "Contacto \"${created.fullName}\" guardado en Supabase"
+                    )
+                }
+            } catch (e: Exception) {
+                // Si la BD rechaza el guardado (ej. numero o nombre duplicado), revertir el temporal
+                _uiState.update { current ->
+                    current.copy(
+                        contacts = current.contacts.filterNot { it.id == tempId },
+                        saving = false
+                    )
+                }
+
+                val rawMsg = e.message.orEmpty()
+                val friendlyMessage = when {
+                    rawMsg.contains("unique_contact_phone", ignoreCase = true) ->
+                        "Este número de teléfono ya está registrado con el código $cleanCountryCode."
+                    rawMsg.contains("unique_contact_fullname", ignoreCase = true) ->
+                        "Ya existe un contacto registrado con este mismo nombre y apellido."
+                    rawMsg.contains("username", ignoreCase = true) || rawMsg.contains("contacts_username_key", ignoreCase = true) ->
+                        "El nombre de usuario \"@$cleanUsername\" ya está en uso."
+                    rawMsg.contains("check", ignoreCase = true) ->
+                        "Los datos no cumplen con las reglas requeridas por la base de datos."
+                    else ->
+                        "Error al guardar en Supabase: ${e.localizedMessage ?: "Intente nuevamente"}"
+                }
+
+                _uiState.update { it.copy(errorMessage = friendlyMessage) }
+                onError(friendlyMessage)
+            }
+        }
+    }
+
+    /**
+     * Elimina un contacto de Supabase por su ID único.
+     */
+    fun deleteContact(id: String, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch {
+            // Eliminacion optimista inmediata de la pantalla
+            val previousList = _uiState.value.contacts
+            _uiState.update { current ->
+                current.copy(contacts = current.contacts.filterNot { it.id == id })
+            }
+
+            try {
+                withContext(Dispatchers.IO) {
+                    repository.delete(id)
+                }
+                _uiState.update { it.copy(successMessage = "Contacto eliminado de Supabase") }
+                onSuccess()
+            } catch (e: Exception) {
+                // Si falla la eliminacion en la nube, restaurar en la lista
+                _uiState.update { current ->
+                    current.copy(
+                        contacts = previousList,
+                        errorMessage = "Error al eliminar en Supabase: ${e.localizedMessage ?: "Intente de nuevo"}"
+                    )
+                }
+            }
+        }
+    }
+
+    /**
+     * Limpia los mensajes de notificación / error.
+     */
+    fun clearMessages() {
+        _uiState.update { it.copy(errorMessage = null, successMessage = null) }
     }
 }

@@ -78,7 +78,7 @@ fun AppNav() {
 
     // Observa el estado reactivo del ViewModel
     val state by vm.state.collectAsState()
-    val contactsState by contactVm.contacts.collectAsState()
+    val contactsUiState by contactVm.uiState.collectAsState()
 
     SharedTransitionLayout {
         NavHost(navController = nav, startDestination = SPLASH) {
@@ -99,7 +99,7 @@ fun AppNav() {
             composable(MENU) {
                 MenuScreen(
                     studentsCount = state.students.size,
-                    contactsCount = contactsState.size,
+                    contactsCount = contactsUiState.contacts.size,
                     onOpenStudents = { nav.navigate(LIST) },
                     onOpenContacts = { nav.navigate(CONTACTS) }
                 )
@@ -119,10 +119,8 @@ fun AppNav() {
             }
             composable(CONTACTS) {
                 ContactsScreen(
-                    contacts = contactsState,
-                    onBack = { nav.popBackStack() },
-                    onAddContact = { name, phone, email -> contactVm.addContact(name, phone, email) },
-                    onDeleteContact = { id -> contactVm.deleteContact(id) }
+                    viewModel = contactVm,
+                    onBack = { nav.popBackStack() }
                 )
             }
 
