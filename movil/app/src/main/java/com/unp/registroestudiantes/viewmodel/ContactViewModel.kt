@@ -95,6 +95,48 @@ class ContactViewModel(
         val cleanPhone = phone.trim()
         val cleanEmail = email?.trim()?.takeIf { it.isNotBlank() }
 
+        // Validacion 1: Comprobar duplicidad de nombre y apellido (insensible a mayusculas/minusculas)
+        val currentList = _uiState.value.contacts
+        val duplicateNameContact = currentList.firstOrNull {
+            it.firstName.trim().equals(cleanFirstName, ignoreCase = true) &&
+            it.lastName.trim().equals(cleanLastName, ignoreCase = true)
+        }
+
+        if (duplicateNameContact != null) {
+            val errorText = if (duplicateNameContact.phone.trim() == cleanPhone) {
+                "Ya existe un contacto registrado con este mismo nombre y número de teléfono."
+            } else {
+                "Ya existe un contacto registrado con el nombre \"${duplicateNameContact.fullName}\". Por favor utilice otro nombre o agregue un distintivo."
+            }
+            _uiState.update { it.copy(errorMessage = errorText) }
+            onError(errorText)
+            return
+        }
+
+        // Validacion 2: Comprobar duplicidad de numero telefonico
+        val duplicatePhoneContact = currentList.firstOrNull {
+            it.phone.trim() == cleanPhone && it.countryCode.trim() == cleanCountryCode
+        }
+        if (duplicatePhoneContact != null) {
+            val errorText = "El número $cleanCountryCode $cleanPhone ya pertenece al contacto \"${duplicatePhoneContact.fullName}\"."
+            _uiState.update { it.copy(errorMessage = errorText) }
+            onError(errorText)
+            return
+        }
+
+        // Validacion 3: Comprobar duplicidad de nombre de usuario si se ingreso
+        if (cleanUsername != null) {
+            val duplicateUserContact = currentList.firstOrNull {
+                it.username?.trim()?.removePrefix("@")?.equals(cleanUsername, ignoreCase = true) == true
+            }
+            if (duplicateUserContact != null) {
+                val errorText = "El nombre de usuario \"@$cleanUsername\" ya está registrado. Por favor elija otro."
+                _uiState.update { it.copy(errorMessage = errorText) }
+                onError(errorText)
+                return
+            }
+        }
+
         // 1. Crear un contacto provisional para reflejarlo de inmediato en la lista (0ms de retraso)
         val tempId = "temp_${UUID.randomUUID()}"
         val tempContact = Contact(
@@ -138,16 +180,16 @@ class ContactViewModel(
                     repository.create(insertData)
                 }
 
-                // Reemplazar el provisional por el definitivo generado en Supabase
+                // Reemplazar el provisional por el definitivo
                 _uiState.update { current ->
                     current.copy(
                         contacts = current.contacts.map { if (it.id == tempId) created else it },
                         saving = false,
-                        successMessage = "Contacto \"${created.fullName}\" guardado en Supabase"
+                        successMessage = "Contacto \"${created.fullName}\" guardado exitosamente"
                     )
                 }
             } catch (e: Exception) {
-                // Si la BD rechaza el guardado (ej. numero o nombre duplicado), revertir el temporal
+                // Si la BD rechaza el guardado, revertir el temporal
                 _uiState.update { current ->
                     current.copy(
                         contacts = current.contacts.filterNot { it.id == tempId },
@@ -160,13 +202,13 @@ class ContactViewModel(
                     rawMsg.contains("unique_contact_phone", ignoreCase = true) ->
                         "Este número de teléfono ya está registrado con el código $cleanCountryCode."
                     rawMsg.contains("unique_contact_fullname", ignoreCase = true) ->
-                        "Ya existe un contacto registrado con este mismo nombre y apellido."
+                        "Ya existe un contacto con el nombre \"$cleanFirstName $cleanLastName\". Por favor, utilice otro nombre."
                     rawMsg.contains("username", ignoreCase = true) || rawMsg.contains("contacts_username_key", ignoreCase = true) ->
                         "El nombre de usuario \"@$cleanUsername\" ya está en uso."
                     rawMsg.contains("check", ignoreCase = true) ->
-                        "Los datos no cumplen con las reglas requeridas por la base de datos."
+                        "Los datos no cumplen con las reglas requeridas por la aplicación."
                     else ->
-                        "Error al guardar en Supabase: ${e.localizedMessage ?: "Intente nuevamente"}"
+                        "Error al guardar el contacto: ${e.localizedMessage ?: "Intente nuevamente"}"
                 }
 
                 _uiState.update { it.copy(errorMessage = friendlyMessage) }
@@ -190,14 +232,14 @@ class ContactViewModel(
                 withContext(Dispatchers.IO) {
                     repository.delete(id)
                 }
-                _uiState.update { it.copy(successMessage = "Contacto eliminado de Supabase") }
+                _uiState.update { it.copy(successMessage = "Contacto eliminado exitosamente") }
                 onSuccess()
             } catch (e: Exception) {
                 // Si falla la eliminacion en la nube, restaurar en la lista
                 _uiState.update { current ->
                     current.copy(
                         contacts = previousList,
-                        errorMessage = "Error al eliminar en Supabase: ${e.localizedMessage ?: "Intente de nuevo"}"
+                        errorMessage = "Error al eliminar el contacto: ${e.localizedMessage ?: "Intente de nuevo"}"
                     )
                 }
             }

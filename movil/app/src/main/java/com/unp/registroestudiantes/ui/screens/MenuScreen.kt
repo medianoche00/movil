@@ -105,20 +105,21 @@ fun MenuScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // Boton / Tarjeta 1: Registro de Estudiantes
+            // Boton / Tarjeta 1: Registro de Estudiantes (DESHABILITADO)
             ModuleCard(
                 title = "Registro de Estudiantes",
-                subtitle = "Lista de alumnos, detección de aptitudes desde CV y generación automática de reseñas.",
-                badgeText = "$studentsCount estudiantes",
+                subtitle = "Módulo temporalmente fuera de servicio. Acceso deshabilitado.",
+                badgeText = "Deshabilitado",
                 icon = Icons.Default.School,
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                iconTint = MaterialTheme.colorScheme.primary,
-                onClick = onOpenStudents
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                iconTint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                enabled = false,
+                onClick = {}
             )
 
             Spacer(Modifier.height(16.dp))
 
-            // Boton / Tarjeta 2: Agenda de Contactos
+            // Boton / Tarjeta 2: Agenda de Contactos (ACTIVO)
             ModuleCard(
                 title = "Agenda de Contactos",
                 subtitle = "Directorio telefónico y correos electrónicos institucionales de contacto rápido.",
@@ -126,6 +127,7 @@ fun MenuScreen(
                 icon = Icons.Default.ContactPhone,
                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
                 iconTint = MaterialTheme.colorScheme.secondary,
+                enabled = true,
                 onClick = onOpenContacts
             )
 
@@ -145,7 +147,7 @@ fun MenuScreen(
 }
 
 /**
- * Tarjeta interactiva de modulo con icono tematico, descripcion y respuesta tactil.
+ * Tarjeta interactiva de modulo con icono tematico, descripcion y respuesta tactil opcional.
  */
 @Composable
 private fun ModuleCard(
@@ -155,14 +157,26 @@ private fun ModuleCard(
     icon: ImageVector,
     containerColor: Color,
     iconTint: Color,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
-    ElevatedCard(
-        onClick = onClick,
-        shape = RoundedCornerShape(18.dp),
-        modifier = Modifier
+    val cardModifier = if (enabled) {
+        Modifier
             .fillMaxWidth()
             .pressScale()
+    } else {
+        Modifier.fillMaxWidth()
+    }
+
+    ElevatedCard(
+        onClick = { if (enabled) onClick() },
+        enabled = enabled,
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = if (enabled) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f),
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+        ),
+        modifier = cardModifier
     ) {
         Column(
             modifier = Modifier.padding(20.dp)
@@ -175,13 +189,16 @@ private fun ModuleCard(
                     modifier = Modifier
                         .size(52.dp)
                         .clip(CircleShape)
-                        .background(containerColor),
+                        .background(
+                            if (enabled) containerColor 
+                            else MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = iconTint,
+                        tint = if (enabled) iconTint else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -192,29 +209,32 @@ private fun ModuleCard(
                     Text(
                         text = title,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                     )
                     Spacer(Modifier.height(2.dp))
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = containerColor.copy(alpha = 0.6f)
+                        color = if (enabled) containerColor.copy(alpha = 0.6f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
                     ) {
                         Text(
                             text = badgeText,
                             style = MaterialTheme.typography.labelSmall,
-                            color = iconTint,
+                            color = if (enabled) iconTint else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                         )
                     }
                 }
 
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = "Abrir módulo",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier.size(20.dp)
-                )
+                if (enabled) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = "Abrir módulo",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
 
             Spacer(Modifier.height(12.dp))
@@ -222,7 +242,7 @@ private fun ModuleCard(
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (enabled) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
                 lineHeight = 20.sp
             )
         }
