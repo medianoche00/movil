@@ -247,6 +247,115 @@ class ContactViewModel(
     }
 
     /**
+     * Actualiza los datos de un contacto existente en Supabase y refresca el estado reactivo.
+     */
+    fun updateContact(
+        id: String,
+        firstName: String,
+        lastName: String,
+        username: String?,
+        countryCode: String,
+        phone: String,
+        email: String?,
+        syncToPhone: Boolean,
+        onSuccess: () -> Unit = {},
+        onError: (String) -> Unit = {}
+    ) {
+        val cleanFirstName = firstName.trim()
+        val cleanLastName = lastName.trim()
+        val cleanUsername = username?.trim()?.removePrefix("@")?.takeIf { it.isNotBlank() }
+        val cleanCountryCode = countryCode.trim()
+        val cleanPhone = phone.trim()
+        val cleanEmail = email?.trim()?.takeIf { it.isNotBlank() }
+
+        val currentList = _uiState.value.contacts
+
+        // 1. Validar que no choque con OTRO contacto diferente
+        val duplicateName = currentList.firstOrNull {
+            it.id != id &&
+            it.firstName.trim().equals(cleanFirstName, ignoreCase = true) &&
+            it.lastName.trim().equals(cleanLastName, ignoreCase = true)
+        }
+        if (duplicateName != null) {
+            val err = "Ya existe otro contacto con el nombre \"${duplicateName.fullName}\"."
+            _uiState.update { it.copy(errorMessage = err) }
+            onError(err)
+            return
+        }
+
+        val duplicatePhone = currentList.firstOrNull {
+            it.id != id &&
+            it.phone.trim() == cleanPhone && it.countryCode.trim() == cleanCountryCode
+        }
+        if (duplicatePhone != null) {
+            val err = "El número $cleanCountryCode $cleanPhone ya pertenece a \"${duplicatePhone.fullName}\"."
+            _uiState.update { it.copy(errorMessage = err) }
+            onError(err)
+            return
+        }
+
+        if (cleanUsername != null) {
+            val duplicateUser = currentList.firstOrNull {
+                it.id != id &&
+                it.username?.trim()?.removePrefix("@")?.equals(cleanUsername, ignoreCase = true) == true
+            }
+            if (duplicateUser != null) {
+                val err = "El nombre de usuario \"@$cleanUsername\" ya está en uso."
+                _uiState.update { it.copy(errorMessage = err) }
+                onError(err)
+                return
+            }
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(saving = true, errorMessage = null) }
+            try {
+                val updateData = ContactInsert(
+                    firstName = cleanFirstName,
+                    lastName = cleanLastName,
+                    username = cleanUsername,
+                    countryCode = cleanCountryCode,
+                    phone = cleanPhone,
+                    email = cleanEmail,
+                    syncToPhone = syncToPhone
+                )
+
+                val updated = withContext(Dispatchers.IO) {
+                    repository.update(id, updateData)
+                }
+
+                _uiState.update { current ->
+                    current.copy(
+                        contacts = current.contacts.map { if (it.id == id) updated else it },
+                        saving = false,
+                        successMessage = "Contacto \"${updated.fullName}\" actualizado correctamente"
+                    )
+                }
+                onSuccess()
+            } catch (e: Exception) {
+                val rawMsg = e.message.orEmpty()
+                val friendlyMessage = when {
+                    rawMsg.contains("unique_contact_phone", ignoreCase = true) ->
+                        "Este número de teléfono ya está registrado con el código $cleanCountryCode."
+                    rawMsg.contains("unique_contact_fullname", ignoreCase = true) ->
+                        "Ya existe un contacto con el nombre \"$cleanFirstName $cleanLastName\"."
+                    rawMsg.contains("username", ignoreCase = true) || rawMsg.contains("contacts_username_key", ignoreCase = true) ->
+                        "El nombre de usuario \"@$cleanUsername\" ya está en uso."
+                    else ->
+                        "Error al actualizar contacto: ${e.localizedMessage ?: "Intente nuevamente"}"
+                }
+                _uiState.update {
+                    it.copy(
+                        saving = false,
+                        errorMessage = friendlyMessage
+                    )
+                }
+                onError(friendlyMessage)
+            }
+        }
+    }
+
+    /**
      * Limpia los mensajes de notificación / error.
      */
     fun clearMessages() {

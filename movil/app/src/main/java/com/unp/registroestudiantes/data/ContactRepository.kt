@@ -30,6 +30,18 @@ class ContactRepository {
             .toContact()
 
     /**
+     * Actualiza los datos de un contacto existente en la tabla 'contacts' de Supabase.
+     */
+    suspend fun update(id: String, data: ContactInsert): Contact =
+        Supa.client.from("contacts")
+            .update(data) {
+                select()
+                filter { eq("id", id) }
+            }
+            .decodeSingle<ContactRow>()
+            .toContact()
+
+    /**
      * Elimina un contacto de la base de datos por su identificador UUID.
      */
     suspend fun delete(id: String) {

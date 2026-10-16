@@ -18,8 +18,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -28,6 +30,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Person
@@ -102,6 +105,7 @@ fun ContactsScreen(
     var attemptedSubmit by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var contactToDelete by remember { mutableStateOf<Contact?>(null) }
+    var contactToEdit by remember { mutableStateOf<Contact?>(null) }
 
     // Mensaje de alerta dinamica flotante
     var activeErrorMessage by remember { mutableStateOf<String?>(null) }
@@ -686,6 +690,7 @@ fun ContactsScreen(
                     itemsIndexed(filteredContacts, key = { _, c -> c.id }) { _, contact ->
                         ContactCardItem(
                             contact = contact,
+                            onEdit = { contactToEdit = contact },
                             onDelete = { contactToDelete = contact }
                         )
                     }
@@ -808,6 +813,263 @@ fun ContactsScreen(
             }
         )
     }
+
+    // Modal para editar contacto
+    contactToEdit?.let { contact ->
+        EditContactDialog(
+            contact = contact,
+            onDismiss = { contactToEdit = null },
+            onSave = { updatedFirst, updatedLast, updatedUser, updatedCountry, updatedPhone, updatedEmail, updatedSync ->
+                viewModel.updateContact(
+                    id = contact.id,
+                    firstName = updatedFirst,
+                    lastName = updatedLast,
+                    username = updatedUser,
+                    countryCode = updatedCountry,
+                    phone = updatedPhone,
+                    email = updatedEmail,
+                    syncToPhone = updatedSync,
+                    onSuccess = {
+                        contactToEdit = null
+                        if (updatedSync) {
+                            DeviceContactsUtil.saveContactToDevice(
+                                context = context,
+                                firstName = updatedFirst,
+                                lastName = updatedLast,
+                                phone = "$updatedCountry $updatedPhone",
+                                email = updatedEmail
+                            )
+                        }
+                    },
+                    onError = { err ->
+                        activeErrorMessage = err
+                    }
+                )
+            }
+        )
+    }
+}
+
+/**
+ * Modal interactivo para editar un contacto existente.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditContactDialog(
+    contact: Contact,
+    onDismiss: () -> Unit,
+    onSave: (
+        firstName: String,
+        lastName: String,
+        username: String?,
+        countryCode: String,
+        phone: String,
+        email: String?,
+        syncToPhone: Boolean
+    ) -> Unit
+) {
+    var editFirstName by remember { mutableStateOf(contact.firstName) }
+    var editLastName by remember { mutableStateOf(contact.lastName) }
+    var editUsername by remember { mutableStateOf(contact.username.orEmpty()) }
+    var editPhone by remember { mutableStateOf(contact.phone) }
+    var editEmail by remember { mutableStateOf(contact.email.orEmpty()) }
+    var editSyncToPhone by remember { mutableStateOf(contact.syncToPhone) }
+
+    val countryMatched = remember(contact.countryCode) {
+        COUNTRY_OPTIONS.firstOrNull { it.dialCode == contact.countryCode.trim() } ?: COUNTRY_OPTIONS[0]
+    }
+    var selectedCountry by remember { mutableStateOf(countryMatched) }
+    var countryDropdownExpanded by remember { mutableStateOf(false) }
+
+    var attemptedSubmit by remember { mutableStateOf(false) }
+
+    val isFirstNameValid = editFirstName.trim().length >= 2
+    val isLastNameValid = editLastName.trim().length >= 2
+    val isPhoneValid = editPhone.trim().length == 9 && editPhone.trim().all { it.isDigit() }
+    val isUsernameValid = editUsername.isBlank() || editUsername.trim().removePrefix("@").length >= 3
+    val isEmailValid = editEmail.isBlank() || Patterns.EMAIL_ADDRESS.matcher(editEmail.trim()).matches()
+    val isFormValid = isFirstNameValid && isLastNameValid && isPhoneValid && isUsernameValid && isEmailValid
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("Editar Contacto", fontWeight = FontWeight.Bold)
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                OutlinedTextField(
+                    value = editFirstName,
+                    onValueChange = { editFirstName = it },
+                    label = { Text("Nombre") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                    isError = attemptedSubmit && !isFirstNameValid,
+                    supportingText = if (attemptedSubmit && !isFirstNameValid) {
+                        { Text("Mínimo 2 letras", color = MaterialTheme.colorScheme.error) }
+                    } else null,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = editLastName,
+                    onValueChange = { editLastName = it },
+                    label = { Text("Apellido") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+                    isError = attemptedSubmit && !isLastNameValid,
+                    supportingText = if (attemptedSubmit && !isLastNameValid) {
+                        { Text("Mínimo 2 letras", color = MaterialTheme.colorScheme.error) }
+                    } else null,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = editUsername,
+                    onValueChange = { editUsername = it },
+                    label = { Text("Usuario (opcional)") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    isError = attemptedSubmit && !isUsernameValid,
+                    supportingText = if (attemptedSubmit && !isUsernameValid) {
+                        { Text("Mínimo 3 caracteres", color = MaterialTheme.colorScheme.error) }
+                    } else null,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            border = CardDefaults.outlinedCardBorder(),
+                            modifier = Modifier
+                                .height(56.dp)
+                                .clickable { countryDropdownExpanded = true }
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp)
+                            ) {
+                                Text(
+                                    text = "${selectedCountry.code} ${selectedCountry.dialCode}",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 13.sp
+                                )
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+                            }
+                        }
+
+                        DropdownMenu(
+                            expanded = countryDropdownExpanded,
+                            onDismissRequest = { countryDropdownExpanded = false }
+                        ) {
+                            COUNTRY_OPTIONS.forEach { c ->
+                                DropdownMenuItem(
+                                    text = { Text("${c.flag} ${c.name} (${c.dialCode})") },
+                                    onClick = {
+                                        selectedCountry = c
+                                        countryDropdownExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.width(8.dp))
+
+                    OutlinedTextField(
+                        value = editPhone,
+                        onValueChange = { input ->
+                            val digits = input.filter { it.isDigit() }
+                            if (digits.length <= 9) editPhone = digits
+                        },
+                        label = { Text("Teléfono") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        shape = RoundedCornerShape(12.dp),
+                        isError = attemptedSubmit && !isPhoneValid,
+                        supportingText = if (attemptedSubmit && !isPhoneValid) {
+                            { Text("9 dígitos", color = MaterialTheme.colorScheme.error) }
+                        } else null,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                OutlinedTextField(
+                    value = editEmail,
+                    onValueChange = { editEmail = it },
+                    label = { Text("Correo (opcional)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                    shape = RoundedCornerShape(12.dp),
+                    isError = attemptedSubmit && !isEmailValid,
+                    supportingText = if (attemptedSubmit && !isEmailValid) {
+                        { Text("Correo no válido", color = MaterialTheme.colorScheme.error) }
+                    } else null,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Guardar en el teléfono",
+                        modifier = Modifier.weight(1f),
+                        fontSize = 14.sp
+                    )
+                    Switch(
+                        checked = editSyncToPhone,
+                        onCheckedChange = { editSyncToPhone = it }
+                    )
+                }
+            }
+        },
+        shape = RoundedCornerShape(20.dp),
+        confirmButton = {
+            Button(
+                onClick = {
+                    attemptedSubmit = true
+                    if (isFormValid) {
+                        onSave(
+                            editFirstName,
+                            editLastName,
+                            editUsername.takeIf { it.isNotBlank() },
+                            selectedCountry.dialCode,
+                            editPhone,
+                            editEmail.takeIf { it.isNotBlank() },
+                            editSyncToPhone
+                        )
+                    }
+                },
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Text("Guardar Cambios")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancelar")
+            }
+        }
+    )
 }
 
 /**
@@ -816,6 +1078,7 @@ fun ContactsScreen(
 @Composable
 private fun ContactCardItem(
     contact: Contact,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     ElevatedCard(
@@ -919,16 +1182,31 @@ private fun ContactCardItem(
                 }
             }
 
-            // Boton para eliminar
-            IconButton(
-                onClick = onDelete,
-                modifier = Modifier.size(40.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Eliminar contacto",
-                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.85f)
-                )
+            // Acciones: Editar y Eliminar
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // Boton para editar contacto
+                IconButton(
+                    onClick = onEdit,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Editar contacto",
+                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.85f)
+                    )
+                }
+
+                // Boton para eliminar contacto
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Eliminar contacto",
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.85f)
+                    )
+                }
             }
         }
     }
