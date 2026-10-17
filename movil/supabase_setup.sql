@@ -1,158 +1,170 @@
 -- ============================================================
--- Script SQL: App de Registro de Estudiantes (Proyecto académico)
+-- SCRIPT: MODELO DE BASE DE DATOS NORMALIZADO (3 TABLAS) - UNP
 -- Ejecutar en el SQL Editor de Supabase
 -- ============================================================
 
--- Extensión para generar UUIDs (normalmente ya viene habilitada en Supabase)
-create extension if not exists "pgcrypto";
+-- 1. Limpieza de tablas previas si existen
+DROP TABLE IF EXISTS personas CASCADE;
+DROP TABLE IF EXISTS profesiones CASCADE;
+DROP TABLE IF EXISTS facultades CASCADE;
 
--- ------------------------------------------------------------
--- 1. Tabla principal: students
--- ------------------------------------------------------------
-create table if not exists students (
-    id                  uuid primary key default gen_random_uuid(),
-    name                text not null,
-    age                 int not null check (age > 0),
-    career              text not null,
-    email               text,
-    photo_url           text,
-    cv_url              text,
-    background_text     text,  -- texto de aptitudes/experiencia: extraído del CV o escrito manualmente
-    review              text,
-    created_at          timestamptz not null default now()
+-- 2. Tabla 1: facultades
+CREATE TABLE facultades (
+    id_facultad SERIAL PRIMARY KEY,
+    nombre      VARCHAR(120) NOT NULL UNIQUE
 );
 
--- ------------------------------------------------------------
--- 2. Catálogo de palabras clave: skills
--- ------------------------------------------------------------
-create table if not exists skills (
-    id          bigint generated always as identity primary key,
-    name        text not null unique,
-    category    text not null check (category in ('tech', 'soft', 'experience'))
+-- 3. Tabla 2: profesiones / carreras
+CREATE TABLE profesiones (
+    codigo_profesion VARCHAR(15) PRIMARY KEY,
+    nombre           VARCHAR(120) NOT NULL UNIQUE,
+    id_facultad      INT NOT NULL,
+
+    -- Clave foránea hacia facultades
+    CONSTRAINT fk_profesion_facultad
+        FOREIGN KEY (id_facultad)
+        REFERENCES facultades(id_facultad)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT
 );
 
--- ------------------------------------------------------------
--- 3. Tabla puente: student_skills (relación N:N)
--- ------------------------------------------------------------
-create table if not exists student_skills (
-    student_id  uuid not null references students(id) on delete cascade,
-    skill_id    bigint not null references skills(id) on delete cascade,
-    primary key (student_id, skill_id)
+-- 4. Tabla 3: personas
+CREATE TABLE personas (
+    dni                 CHAR(8) PRIMARY KEY,
+    nombres             VARCHAR(100) NOT NULL,
+    apellidos           VARCHAR(100) NOT NULL,
+    direccion           VARCHAR(200) NOT NULL,
+    codigo_profesion    VARCHAR(15) NOT NULL,
+    celular             CHAR(9) NOT NULL,
+    correo_electronico  VARCHAR(150) NOT NULL,
+    foto                TEXT,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    -- Restricciones de formato
+    CONSTRAINT chk_dni_format CHECK (dni ~ '^[0-9]{8}$'),
+    CONSTRAINT chk_celular_format CHECK (celular ~ '^[0-9]{9}$'),
+
+    -- Clave foránea hacia profesiones
+    CONSTRAINT fk_persona_profesion 
+        FOREIGN KEY (codigo_profesion) 
+        REFERENCES profesiones(codigo_profesion) 
+        ON UPDATE CASCADE 
+        ON DELETE RESTRICT
 );
 
--- ------------------------------------------------------------
--- 4. Precarga del catálogo de skills (mismas palabras clave del análisis en Kotlin)
--- ------------------------------------------------------------
-insert into skills (name, category) values
-    ('Kotlin', 'tech'),
-    ('Java', 'tech'),
-    ('Python', 'tech'),
-    ('JavaScript', 'tech'),
-    ('React', 'tech'),
-    ('SQL', 'tech'),
-    ('Android', 'tech'),
-    ('Figma', 'tech'),
-    ('Liderazgo', 'soft'),
-    ('Trabajo en equipo', 'soft'),
-    ('Comunicación', 'soft'),
-    ('Proactividad', 'soft'),
-    ('Practicante', 'experience'),
-    ('Pasantía', 'experience'),
-    ('Freelance', 'experience'),
-    ('Desarrollador', 'experience'),
-    ('Becario', 'experience'),
-    ('Voluntariado', 'experience')
-on conflict (name) do nothing;
+-- 5. Índices de rendimiento para búsquedas y relaciones
+CREATE INDEX idx_profesiones_facultad ON profesiones(id_facultad);
+CREATE INDEX idx_personas_nombres_apellidos ON personas(nombres, apellidos);
+CREATE INDEX idx_personas_profesion ON personas(codigo_profesion);
+CREATE INDEX idx_personas_celular ON personas(celular);
 
--- ------------------------------------------------------------
--- 5. Índices útiles
--- ------------------------------------------------------------
-create index if not exists idx_student_skills_student_id on student_skills(student_id);
-create index if not exists idx_student_skills_skill_id on student_skills(skill_id);
-create index if not exists idx_students_name on students(name);
+-- 6. Seguridad a nivel de fila (Row Level Security - RLS)
+ALTER TABLE facultades ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profesiones ENABLE ROW LEVEL SECURITY;
+ALTER TABLE personas ENABLE ROW LEVEL SECURITY;
 
--- ------------------------------------------------------------
--- 6. Row Level Security (RLS)
--- Nota: no hay autenticación en la app, así que se habilita RLS
--- con una política abierta (permite todo). En un entorno real de
--- producción, esto se restringiría por usuario/rol autenticado.
--- ------------------------------------------------------------
-alter table students enable row level security;
-alter table skills enable row level security;
-alter table student_skills enable row level security;
+CREATE POLICY "Allow all operations on facultades" ON facultades
+    FOR ALL USING (true) WITH CHECK (true);
 
-create policy "Allow all on students" on students
-    for all using (true) with check (true);
+CREATE POLICY "Allow all operations on profesiones" ON profesiones
+    FOR ALL USING (true) WITH CHECK (true);
 
-create policy "Allow all on skills" on skills
-    for all using (true) with check (true);
+CREATE POLICY "Allow all operations on personas" ON personas
+    FOR ALL USING (true) WITH CHECK (true);
 
-create policy "Allow all on student_skills" on student_skills
-    for all using (true) with check (true);
+-- 7. Bucket de Storage en Supabase para almacenamiento de fotos
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('personas-photos', 'personas-photos', true)
+ON CONFLICT (id) DO NOTHING;
 
--- ------------------------------------------------------------
--- 7. Buckets de Storage (fotos y CVs)
--- Nota: esto crea los buckets vía SQL. Si prefieres, también puedes
--- crearlos desde la sección "Storage" del dashboard de Supabase.
--- ------------------------------------------------------------
-insert into storage.buckets (id, name, public)
-values ('student-photos', 'student-photos', true)
-on conflict (id) do nothing;
+DROP POLICY IF EXISTS "Public access personas-photos" ON storage.objects;
 
-insert into storage.buckets (id, name, public)
-values ('student-cvs', 'student-cvs', true)
-on conflict (id) do nothing;
+CREATE POLICY "Public access personas-photos"
+    ON storage.objects FOR ALL
+    USING (bucket_id = 'personas-photos')
+    WITH CHECK (bucket_id = 'personas-photos');
 
--- Políticas de Storage: acceso abierto de lectura/escritura (sin login)
-create policy "Public access student-photos"
-    on storage.objects for all
-    using (bucket_id = 'student-photos')
-    with check (bucket_id = 'student-photos');
+-- 8. Carga del catálogo de Facultades (14 Facultades de la UNP)
+INSERT INTO facultades (id_facultad, nombre) VALUES
+    (1, 'Facultad de Agronomía'),
+    (2, 'Facultad de Arquitectura y Urbanismo'),
+    (3, 'Facultad de Ciencias Administrativas'),
+    (4, 'Facultad de Ciencias Contables y Financieras'),
+    (5, 'Facultad de Ciencias'),
+    (6, 'Facultad de Ciencias de la Salud'),
+    (7, 'Facultad de Ciencias Sociales y Educación'),
+    (8, 'Facultad de Derecho y Ciencias Políticas'),
+    (9, 'Facultad de Economía'),
+    (10, 'Facultad de Ingeniería Civil'),
+    (11, 'Facultad de Ingeniería Industrial'),
+    (12, 'Facultad de Ingeniería de Minas'),
+    (13, 'Facultad de Ingeniería Pesquera'),
+    (14, 'Facultad de Zootecnia');
 
-create policy "Public access student-cvs"
-    on storage.objects for all
-    using (bucket_id = 'student-cvs')
-    with check (bucket_id = 'student-cvs');
+-- Sincronizar el valor de la secuencia autoincrementable
+SELECT setval(pg_get_serial_sequence('facultades', 'id_facultad'), 14);
 
--- ============================================================
--- 8. Tabla: contacts (Agenda de contactos estilo WhatsApp)
--- ============================================================
-create table if not exists contacts (
-    id              uuid primary key default gen_random_uuid(),
-    first_name      text not null check (char_length(trim(first_name)) >= 2),
-    last_name       text not null check (char_length(trim(last_name)) >= 2),
-    username        text unique check (username is null or char_length(trim(username)) >= 3),
-    country_code    text not null default '+51',
-    phone           text not null check (char_length(trim(phone)) = 9),
-    email           text,
-    sync_to_phone   boolean not null default false,
-    created_at      timestamptz not null default now(),
+-- 9. Carga de las Escuelas Profesionales vinculadas a su Facultad
+INSERT INTO profesiones (codigo_profesion, nombre, id_facultad) VALUES
+    -- Facultad de Agronomía (1)
+    ('AGRO', 'Agronomía', 1),
+    ('ING-AGRI', 'Ingeniería Agrícola', 1),
 
-    -- Restricción: No duplicar el número dentro del mismo código de país
-    constraint unique_contact_phone unique (country_code, phone),
+    -- Facultad de Arquitectura y Urbanismo (2)
+    ('ARQ', 'Arquitectura y Urbanismo', 2),
 
-    -- Restricción: No duplicar la combinación exacta de nombre y apellido
-    constraint unique_contact_fullname unique (first_name, last_name)
-);
+    -- Facultad de Ciencias Administrativas (3)
+    ('ADM', 'Ciencias Administrativas', 3),
 
--- Índices para optimizar búsquedas por nombre, apellido, usuario y teléfono
-create index if not exists idx_contacts_first_name on contacts(first_name);
-create index if not exists idx_contacts_last_name on contacts(last_name);
-create index if not exists idx_contacts_username on contacts(username);
-create index if not exists idx_contacts_phone on contacts(phone);
+    -- Facultad de Ciencias Contables y Financieras (4)
+    ('CONT', 'Ciencias Contables y Financieras', 4),
 
--- Seguridad a nivel de fila (Row Level Security - RLS)
-alter table contacts enable row level security;
+    -- Facultad de Ciencias (5)
+    ('MAT', 'Matemática', 5),
+    ('FIS', 'Física', 5),
+    ('BIO', 'Ciencias Biológicas', 5),
+    ('EST', 'Estadística', 5),
+    ('ING-TEL', 'Ingeniería Electrónica y Telecomunicaciones', 5),
 
-create policy "Allow all operations on contacts" on contacts
-    for all
-    using (true)
-    with check (true);
+    -- Facultad de Ciencias de la Salud (6)
+    ('MED', 'Medicina Humana', 6),
+    ('ENF', 'Enfermería', 6),
+    ('ESTO', 'Estomatología', 6),
+    ('OBS', 'Obstetricia', 6),
+    ('PSI', 'Psicología', 6),
 
--- Inserción de registros iniciales de prueba
-insert into contacts (first_name, last_name, username, country_code, phone, email, sync_to_phone) values
-    ('Juan', 'Pérez', 'juanperez', '+51', '987654321', 'juan.perez@unp.edu.pe', false),
-    ('María', 'López', null, '+51', '912345678', 'maria.lopez@gmail.com', false),
-    ('Carlos', 'Mendoza', 'carlos_m', '+51', '955443322', 'carlos.mendoza@outlook.com', false)
-on conflict do nothing;
+    -- Facultad de Ciencias Sociales y Educación (7)
+    ('EDU-HG', 'Historia y Geografía', 7),
+    ('EDU-LL', 'Lengua y Literatura', 7),
+    ('EDU-INI', 'Educación Inicial', 7),
+    ('EDU-PRI', 'Educación Primaria', 7),
+    ('COM', 'Ciencias de la Comunicación', 7),
 
+    -- Facultad de Derecho y Ciencias Políticas (8)
+    ('DER', 'Derecho y Ciencias Políticas', 8),
+
+    -- Facultad de Economía (9)
+    ('ECO', 'Economía', 9),
+
+    -- Facultad de Ingeniería Civil (10)
+    ('ING-CIV', 'Ingeniería Civil', 10),
+
+    -- Facultad de Ingeniería Industrial (11)
+    ('ING-IND', 'Ingeniería Industrial', 11),
+    ('ING-INFO', 'Ingeniería Informática', 11),
+    ('ING-AGROIND', 'Ingeniería Agroindustrial e Industrias Alimentarias', 11),
+    ('ING-MECA', 'Ingeniería Mecatrónica', 11),
+
+    -- Facultad de Ingeniería de Minas (12)
+    ('ING-MIN', 'Ingeniería de Minas', 12),
+    ('ING-GEO', 'Ingeniería Geológica', 12),
+    ('ING-PET', 'Ingeniería de Petróleo', 12),
+    ('ING-QUIM', 'Ingeniería Química', 12),
+    ('ING-AMB', 'Ingeniería Ambiental y Seguridad Industrial', 12),
+
+    -- Facultad de Ingeniería Pesquera (13)
+    ('ING-PESQ', 'Ingeniería Pesquera', 13),
+
+    -- Facultad de Zootecnia (14)
+    ('ING-ZOO', 'Ingeniería Zootecnia', 14),
+    ('VET', 'Medicina Veterinaria', 14);
