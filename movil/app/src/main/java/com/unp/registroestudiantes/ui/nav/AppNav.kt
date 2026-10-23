@@ -20,10 +20,10 @@ import com.unp.registroestudiantes.ui.screens.DetailScreen
 import com.unp.registroestudiantes.ui.screens.FormScreen
 import com.unp.registroestudiantes.ui.screens.ListScreen
 import com.unp.registroestudiantes.ui.screens.MenuScreen
-import com.unp.registroestudiantes.ui.screens.PersonaScreen
+import com.unp.registroestudiantes.persona.ui.PersonaScreen
 import com.unp.registroestudiantes.ui.screens.SplashScreen
 import com.unp.registroestudiantes.viewmodel.ContactViewModel
-import com.unp.registroestudiantes.viewmodel.PersonaViewModel
+import com.unp.registroestudiantes.persona.ui.PersonaViewModel
 import com.unp.registroestudiantes.viewmodel.StudentViewModel
 
 /*

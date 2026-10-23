@@ -1,36 +1,31 @@
-package com.unp.registroestudiantes.data
+package com.unp.registroestudiantes.persona.data.repository
 
+import com.unp.registroestudiantes.data.Supa
+import com.unp.registroestudiantes.persona.data.model.Persona
+import com.unp.registroestudiantes.persona.data.model.PersonaRow
+import com.unp.registroestudiantes.persona.data.model.PersonaWrite
+import com.unp.registroestudiantes.persona.data.model.Profesion
+import com.unp.registroestudiantes.persona.data.model.ProfesionRow
+import com.unp.registroestudiantes.persona.data.model.toPersona
+import com.unp.registroestudiantes.persona.data.model.toProfesion
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Order
 import io.github.jan.supabase.storage.storage
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 
 /*
  * Archivo: PersonaRepository.kt
- * Proposito: Repositorio para la gestión de Personas conectado a Supabase (Trabajo N°03).
- *
- * Implementa el patrón Repository encapsulando todas las operaciones CRUD
- * sobre las tablas 'personas' y 'profesiones', y la subida de fotos al bucket.
+ * Proposito: Repositorio para la gestion de datos de Persona y Profesion con Supabase.
  */
 class PersonaRepository {
 
-    // ------------------------------------------------------------------
-    // PROFESIONES - catálogo solo lectura
-    // ------------------------------------------------------------------
-
-    /** Obtiene todas las profesiones del catálogo para llenar el DropdownMenu. */
+    /** Obtiene todas las profesiones registradas ordenadas alfabeticamente. */
     suspend fun getProfesiones(): List<Profesion> =
         Supa.client.from("profesiones")
             .select { order("nombre", Order.ASCENDING) }
             .decodeList<ProfesionRow>()
             .map { it.toProfesion() }
 
-    // ------------------------------------------------------------------
-    // PERSONAS - operaciones CRUD
-    // ------------------------------------------------------------------
-
-    /** Busca una persona exactamente por su DNI (llave primaria). */
+    /** Busca una persona por su clave primaria DNI. */
     suspend fun getByDni(dni: String): Persona? =
         Supa.client.from("personas")
             .select { filter { eq("dni", dni) } }
@@ -38,27 +33,21 @@ class PersonaRepository {
             .firstOrNull()
             ?.toPersona()
 
-    /** Obtiene todas las personas ordenadas por apellido ascendente. */
+    /** Obtiene el listado completo de personas ordenadas por apellidos. */
     suspend fun getAll(): List<Persona> =
         Supa.client.from("personas")
             .select { order("apellidos", Order.ASCENDING) }
             .decodeList<PersonaRow>()
             .map { it.toPersona() }
 
-    /**
-     * Inserta una nueva persona en la tabla 'personas'.
-     * @return La persona creada con todos sus datos confirmados por la BD.
-     */
+    /** Inserta un nuevo registro de persona y retorna la entidad creada. */
     suspend fun insert(data: PersonaWrite): Persona =
         Supa.client.from("personas")
             .insert(data) { select() }
             .decodeSingle<PersonaRow>()
             .toPersona()
 
-    /**
-     * Actualiza los datos de la persona identificada por su DNI.
-     * @return La persona actualizada.
-     */
+    /** Actualiza los datos de la persona identificada por su DNI. */
     suspend fun update(dni: String, data: PersonaWrite): Persona =
         Supa.client.from("personas")
             .update(data) {
@@ -68,23 +57,15 @@ class PersonaRepository {
             .decodeSingle<PersonaRow>()
             .toPersona()
 
-    /**
-     * Elimina la persona de la base de datos por su DNI.
-     */
+    /** Elimina el registro de la persona por DNI. */
     suspend fun delete(dni: String) {
         Supa.client.from("personas")
             .delete { filter { eq("dni", dni) } }
     }
 
-    // ------------------------------------------------------------------
-    // STORAGE - subida de foto al bucket 'personas-photos'
-    // ------------------------------------------------------------------
-
     /**
-     * Sube los bytes de la foto al bucket 'personas-photos' de Supabase Storage.
-     * @param dni DNI de la persona (se usa como nombre de archivo para sobreescribir).
-     * @param imageBytes Contenido binario de la imagen JPEG/PNG.
-     * @return URL pública de la foto almacenada.
+     * Sube el archivo binario de la fotografia al bucket de Supabase Storage
+     * y retorna su URL publica de acceso.
      */
     suspend fun uploadPhoto(dni: String, imageBytes: ByteArray): String {
         val path = "personas/$dni.jpg"

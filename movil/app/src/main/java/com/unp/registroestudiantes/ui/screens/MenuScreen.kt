@@ -29,14 +29,6 @@ import com.unp.registroestudiantes.ui.theme.pressScale
 /*
  * Archivo: MenuScreen.kt
  * Proposito: Pantalla de inicio y selector de modulos principales despues del Splash Screen.
- *
- * Guia de navegacion y arquitectura:
- * 1. Punto de entrada funcional: Permite al usuario elegir entre el modulo
- *    de Registro de Estudiantes (con analisis de CV y resenas), la Agenda de Contactos
- *    y el Registro de Personas (Trabajo N°03).
- * 2. Experiencia de usuario (UX):
- *    - Tarjetas interactivas con respuesta tactil mediante la animacion appleSpring (.pressScale).
- *    - Indicadores numericos (badges) que muestran la cantidad de registros en cada modulo.
  */
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -123,16 +115,16 @@ fun MenuScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // Boton / Tarjeta 2: Agenda de Contactos (ACTIVO)
+            // Boton / Tarjeta 2: Agenda de Contactos (DESHABILITADO)
             ModuleCard(
                 title = "Agenda de Contactos",
-                subtitle = "Directorio telefónico y correos electrónicos institucionales de contacto rápido.",
-                badgeText = "$contactsCount contactos",
+                subtitle = "Módulo temporalmente fuera de servicio. Acceso deshabilitado.",
+                badgeText = "Deshabilitado",
                 icon = Icons.Default.ContactPhone,
-                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                iconTint = MaterialTheme.colorScheme.secondary,
-                enabled = true,
-                onClick = onOpenContacts
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                iconTint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                enabled = false,
+                onClick = {}
             )
 
             Spacer(Modifier.height(16.dp))
@@ -140,7 +132,7 @@ fun MenuScreen(
             // Boton / Tarjeta 3: Registro de Personas - Trabajo N°03 (ACTIVO)
             ModuleCard(
                 title = "Registro de Personas",
-                subtitle = "CRUD completo de personas con foto, profesión, DNI como llave primaria y captura desde cámara.",
+                subtitle = "Registro de personas con foto, profesión y búsqueda por DNI.",
                 badgeText = "Trabajo N°03",
                 icon = Icons.Default.People,
                 containerColor = MaterialTheme.colorScheme.tertiaryContainer,

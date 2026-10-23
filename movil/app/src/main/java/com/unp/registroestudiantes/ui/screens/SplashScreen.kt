@@ -193,14 +193,14 @@ fun SplashScreen(onFinished: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Lista de",
+                    text = "Registro de",
                     color = Color.White.copy(alpha = 0.82f),
                     fontSize = 34.sp,
                     fontWeight = FontWeight.Light,
                     letterSpacing = 3.sp
                 )
                 Text(
-                    text = "Contactos",
+                    text = "Personas",
                     color = Color.White,
                     fontSize = 34.sp,
                     fontWeight = FontWeight.Bold,
