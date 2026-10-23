@@ -8,7 +8,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.ContactPhone
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -30,7 +32,8 @@ import com.unp.registroestudiantes.ui.theme.pressScale
  *
  * Guia de navegacion y arquitectura:
  * 1. Punto de entrada funcional: Permite al usuario elegir entre el modulo
- *    de Registro de Estudiantes (con analisis de CV y resenas) y la Agenda de Contactos.
+ *    de Registro de Estudiantes (con analisis de CV y resenas), la Agenda de Contactos
+ *    y el Registro de Personas (Trabajo N°03).
  * 2. Experiencia de usuario (UX):
  *    - Tarjetas interactivas con respuesta tactil mediante la animacion appleSpring (.pressScale).
  *    - Indicadores numericos (badges) que muestran la cantidad de registros en cada modulo.
@@ -42,7 +45,8 @@ fun MenuScreen(
     studentsCount: Int,
     contactsCount: Int,
     onOpenStudents: () -> Unit,
-    onOpenContacts: () -> Unit
+    onOpenContacts: () -> Unit,
+    onOpenPersonas: () -> Unit = {}
 ) {
     Scaffold(
         topBar = {
@@ -129,6 +133,20 @@ fun MenuScreen(
                 iconTint = MaterialTheme.colorScheme.secondary,
                 enabled = true,
                 onClick = onOpenContacts
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            // Boton / Tarjeta 3: Registro de Personas - Trabajo N°03 (ACTIVO)
+            ModuleCard(
+                title = "Registro de Personas",
+                subtitle = "CRUD completo de personas con foto, profesión, DNI como llave primaria y captura desde cámara.",
+                badgeText = "Trabajo N°03",
+                icon = Icons.Default.People,
+                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                iconTint = MaterialTheme.colorScheme.tertiary,
+                enabled = true,
+                onClick = onOpenPersonas
             )
 
             Spacer(Modifier.height(32.dp))

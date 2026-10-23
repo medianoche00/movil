@@ -20,8 +20,10 @@ import com.unp.registroestudiantes.ui.screens.DetailScreen
 import com.unp.registroestudiantes.ui.screens.FormScreen
 import com.unp.registroestudiantes.ui.screens.ListScreen
 import com.unp.registroestudiantes.ui.screens.MenuScreen
+import com.unp.registroestudiantes.ui.screens.PersonaScreen
 import com.unp.registroestudiantes.ui.screens.SplashScreen
 import com.unp.registroestudiantes.viewmodel.ContactViewModel
+import com.unp.registroestudiantes.viewmodel.PersonaViewModel
 import com.unp.registroestudiantes.viewmodel.StudentViewModel
 
 /*
@@ -65,6 +67,7 @@ private const val FORM_NEW  = "form"
 private const val FORM_EDIT = "form/{id}"
 private const val DETAIL    = "detail/{id}"
 private const val CONTACTS  = "contacts"
+private const val PERSONAS  = "personas"          // Trabajo N°03
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -75,6 +78,7 @@ fun AppNav() {
     // Instancia unica de los ViewModels compartida por las pantallas
     val vm: StudentViewModel = viewModel()
     val contactVm: ContactViewModel = viewModel()
+    val personaVm: PersonaViewModel = viewModel()   // Trabajo N°03
 
     // Observa el estado reactivo del ViewModel
     val state by vm.state.collectAsState()
@@ -95,13 +99,14 @@ fun AppNav() {
                 )
             }
 
-            // Destino 2: Panel Principal con selector de los 2 modulos
+            // Destino 2: Panel Principal con selector de los 3 modulos
             composable(MENU) {
                 MenuScreen(
                     studentsCount = state.students.size,
                     contactsCount = contactsUiState.contacts.size,
                     onOpenStudents = { nav.navigate(LIST) },
-                    onOpenContacts = { nav.navigate(CONTACTS) }
+                    onOpenContacts = { nav.navigate(CONTACTS) },
+                    onOpenPersonas = { nav.navigate(PERSONAS) }   // Trabajo N°03
                 )
             }
 
@@ -120,6 +125,14 @@ fun AppNav() {
             composable(CONTACTS) {
                 ContactsScreen(
                     viewModel = contactVm,
+                    onBack = { nav.popBackStack() }
+                )
+            }
+
+            // Destino: Registro de Personas - Trabajo N°03
+            composable(PERSONAS) {
+                PersonaScreen(
+                    viewModel = personaVm,
                     onBack = { nav.popBackStack() }
                 )
             }

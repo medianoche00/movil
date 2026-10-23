@@ -41,6 +41,7 @@ object Supa {
     // Nombres exactos de los buckets de almacenamiento creados en el dashboard de Supabase
     const val PHOTOS_BUCKET = "student-photos"
     const val CVS_BUCKET = "student-cvs"
+    const val PERSONAS_PHOTOS_BUCKET = "personas-photos"   // Trabajo N°03
 
     // Cliente global configurado con las credenciales del proyecto
     val client = createSupabaseClient(

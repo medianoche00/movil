@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    file_paths.xml — Rutas permitidas para el FileProvider (Trabajo N°03)
+
+    external-files-path: Apunta a Context.getExternalFilesDir()
+    Equivale a /sdcard/Android/data/<packageName>/files/Pictures/
+    Esta ruta es privada de la app (no requiere permiso READ_EXTERNAL_STORAGE en Android 10+)
+    y es donde se crean los archivos temporales de foto en PersonaScreen.kt
+-->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <external-files-path
+        name="persona_photos"
+        path="Pictures/" />
+</paths>
