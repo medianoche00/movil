@@ -82,6 +82,14 @@ dependencies {
     implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
 
+    // Biometría: Huella Dactilar, Detección Facial y Cámara en Vivo (Trabajo N°04)
+    implementation("androidx.biometric:biometric:1.1.0")
+    implementation("com.google.mlkit:face-detection:16.1.7")
+    implementation("androidx.camera:camera-core:1.4.1")
+    implementation("androidx.camera:camera-camera2:1.4.1")
+    implementation("androidx.camera:camera-lifecycle:1.4.1")
+    implementation("androidx.camera:camera-view:1.4.1")
+
     // Tests
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

@@ -168,3 +168,25 @@ INSERT INTO profesiones (codigo_profesion, nombre, id_facultad) VALUES
     -- Facultad de Zootecnia (14)
     ('ING-ZOO', 'Ingeniería Zootecnia', 14),
     ('VET', 'Medicina Veterinaria', 14);
+
+-- ============================================================
+-- 10. TRABAJO N° 04: TABLA DE USUARIOS CON CONTROL BIOMÉTRICO
+-- ============================================================
+CREATE TABLE IF NOT EXISTS usuarios_biometricos (
+    dni             CHAR(8) PRIMARY KEY,
+    nombre          VARCHAR(150) NOT NULL,
+    contrasena      VARCHAR(150) NOT NULL,
+    huella          TEXT NOT NULL,
+    imagen_facial   TEXT NOT NULL,
+    vector_facial   TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT chk_usuario_bio_dni CHECK (dni ~ '^[0-9]{8}$')
+);
+
+ALTER TABLE usuarios_biometricos ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow all operations on usuarios_biometricos" ON usuarios_biometricos;
+CREATE POLICY "Allow all operations on usuarios_biometricos" ON usuarios_biometricos
+    FOR ALL USING (true) WITH CHECK (true);
+

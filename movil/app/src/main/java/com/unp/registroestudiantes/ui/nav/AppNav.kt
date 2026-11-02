@@ -15,15 +15,17 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.unp.registroestudiantes.biometria.ui.BiometricAuthScreen
+import com.unp.registroestudiantes.biometria.ui.BiometricViewModel
+import com.unp.registroestudiantes.persona.ui.PersonaScreen
+import com.unp.registroestudiantes.persona.ui.PersonaViewModel
 import com.unp.registroestudiantes.ui.screens.ContactsScreen
 import com.unp.registroestudiantes.ui.screens.DetailScreen
 import com.unp.registroestudiantes.ui.screens.FormScreen
 import com.unp.registroestudiantes.ui.screens.ListScreen
 import com.unp.registroestudiantes.ui.screens.MenuScreen
-import com.unp.registroestudiantes.persona.ui.PersonaScreen
 import com.unp.registroestudiantes.ui.screens.SplashScreen
 import com.unp.registroestudiantes.viewmodel.ContactViewModel
-import com.unp.registroestudiantes.persona.ui.PersonaViewModel
 import com.unp.registroestudiantes.viewmodel.StudentViewModel
 
 /*
@@ -35,6 +37,8 @@ import com.unp.registroestudiantes.viewmodel.StudentViewModel
  * 1. Rutas basadas en cadenas de texto (Strings):
  *    Al igual que en React Router o Express.js:
  *      - "splash": Pantalla de bienvenida con animacion.
+ *      - "biometria": Control de acceso biometrico (Trabajo N°04).
+ *      - "menu": Panel principal con modulos academicos.
  *      - "list": Pantalla con la lista y cuadricula de estudiantes.
  *      - "form": Formulario para crear un nuevo estudiante.
  *      - "form/{id}": Formulario para editar un estudiante existente por parametro.
@@ -45,7 +49,7 @@ import com.unp.registroestudiantes.viewmodel.StudentViewModel
  *    Equivale al objeto 'history' o 'useNavigate()' en React Router.
  *
  * 3. viewModel():
- *    Obtiene la instancia de StudentViewModel vinculada al ciclo de vida de la Activity.
+ *    Obtiene la instancia del ViewModel vinculada al ciclo de vida de la Activity.
  *    No se destruye al navegar entre pantallas; todos los destinos comparten el mismo estado.
  *
  * 4. collectAsState():
@@ -54,13 +58,14 @@ import com.unp.registroestudiantes.viewmodel.StudentViewModel
  *    las partes de la pantalla que leen ese valor (similar al hook useSelector en Redux).
  *
  * 5. popUpTo("splash") { inclusive = true }:
- *    Al terminar el SplashScreen, se navega a "list" y se remueve "splash" del historial.
- *    Esto evita que si el usuario presiona el boton fisico "Atras" en el celular,
+ *    Al terminar el SplashScreen, se navega a la pantalla de autenticacion y se remueve "splash"
+ *    del historial. Esto evita que si el usuario presiona el boton fisico "Atras" en el celular,
  *    regrese a la pantalla de bienvenida.
  */
 
 // Constantes de rutas de navegacion
 private const val SPLASH    = "splash"
+private const val BIOMETRIA = "biometria"         // Trabajo N°04 (Puerta de acceso al iniciar)
 private const val MENU      = "menu"
 private const val LIST      = "list"
 private const val FORM_NEW  = "form"
@@ -71,14 +76,18 @@ private const val PERSONAS  = "personas"          // Trabajo N°03
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-fun AppNav() {
+fun AppNav(
+    darkTheme: Boolean = false,
+    onToggleTheme: () -> Unit = {}
+) {
     // Controlador de la pila de navegacion
     val nav: NavHostController = rememberNavController()
 
     // Instancia unica de los ViewModels compartida por las pantallas
     val vm: StudentViewModel = viewModel()
     val contactVm: ContactViewModel = viewModel()
-    val personaVm: PersonaViewModel = viewModel()   // Trabajo N°03
+    val personaVm: PersonaViewModel = viewModel()     // Trabajo N°03
+    val biometricVm: BiometricViewModel = viewModel() // Trabajo N°04
 
     // Observa el estado reactivo del ViewModel
     val state by vm.state.collectAsState()
@@ -91,15 +100,25 @@ fun AppNav() {
             composable(SPLASH) {
                 SplashScreen(
                     onFinished = {
-                        // Navega al panel principal y remueve el Splash del historial
-                        nav.navigate(MENU) {
+                        // Navega al Login Biometrico al abrir la aplicacion y remueve el Splash
+                        nav.navigate(BIOMETRIA) {
                             popUpTo(SPLASH) { inclusive = true }
                         }
                     }
                 )
             }
 
-            // Destino 2: Panel Principal con selector de los 3 modulos
+            // Destino 2: Control de Acceso Biometrico - Trabajo N°04
+            composable(BIOMETRIA) {
+                BiometricAuthScreen(
+                    viewModel = biometricVm,
+                    darkTheme = darkTheme,
+                    onToggleTheme = onToggleTheme,
+                    onIrAPanelAcademico = { nav.navigate(MENU) }
+                )
+            }
+
+            // Destino 3: Panel Principal con selector de los modulos
             composable(MENU) {
                 MenuScreen(
                     studentsCount = state.students.size,
@@ -110,7 +129,7 @@ fun AppNav() {
                 )
             }
 
-            // Destino 3: Listado de estudiantes (Lista o Cuadricula)
+            // Destino 4: Listado de estudiantes (Lista o Cuadricula)
             composable(LIST) {
                 ListScreen(
                     students = state.students,
@@ -137,7 +156,7 @@ fun AppNav() {
                 )
             }
 
-            // Destino 3: Formulario para registrar un nuevo estudiante
+            // Destino: Formulario para registrar un nuevo estudiante
             composable(FORM_NEW) {
                 FormScreen(
                     editing = null,
@@ -153,7 +172,7 @@ fun AppNav() {
                 )
             }
 
-            // Destino 4: Formulario para editar un estudiante existente
+            // Destino: Formulario para editar un estudiante existente
             composable(FORM_EDIT) { entry ->
                 val id = entry.arguments?.getString("id")
                 val editing = state.students.firstOrNull { it.id == id }
@@ -171,7 +190,7 @@ fun AppNav() {
                 )
             }
 
-            // Destino 5: Detalle completo del estudiante y resena generada
+            // Destino: Detalle completo del estudiante y resena generada
             composable(DETAIL) { entry ->
                 val id = entry.arguments?.getString("id")
                 val student = state.students.firstOrNull { it.id == id }

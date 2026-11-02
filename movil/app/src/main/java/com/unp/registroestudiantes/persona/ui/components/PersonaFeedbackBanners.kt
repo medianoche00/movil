@@ -1,10 +1,16 @@
 package com.unp.registroestudiantes.persona.ui.components
 
-import androidx.compose.animation.*
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -12,23 +18,31 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.unp.registroestudiantes.ui.theme.pressScale
 import kotlinx.coroutines.delay
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 /*
  * Archivo: PersonaFeedbackBanners.kt
- * Proposito: Banner de notificacion flotante superior con auto-cierre temporizado estilo Apple.
+ * Proposito: Banner de notificacion flotante superior con auto-cierre temporizado (4.5s),
+ *            boton 'X' y cierre al deslizar hacia arriba o hacia los costados.
  */
 @Composable
 fun PersonaFeedbackBanners(
@@ -37,6 +51,20 @@ fun PersonaFeedbackBanners(
     onClearMessages: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var dragX by remember(errorMessage, successMessage) { mutableFloatStateOf(0f) }
+    var dragY by remember(errorMessage, successMessage) { mutableFloatStateOf(0f) }
+
+    val animX by animateFloatAsState(
+        targetValue = dragX,
+        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+        label = "personaBannerX"
+    )
+    val animY by animateFloatAsState(
+        targetValue = dragY,
+        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+        label = "personaBannerY"
+    )
+
     // Auto-cierre tras 4.5 segundos
     LaunchedEffect(errorMessage, successMessage) {
         if (errorMessage != null || successMessage != null) {
@@ -48,6 +76,7 @@ fun PersonaFeedbackBanners(
     val visible = errorMessage != null || successMessage != null
     val esError = errorMessage != null
     val mensaje = errorMessage ?: successMessage ?: ""
+    val fadeProgress = (1f - (abs(animX) / 320f) - (abs(animY.coerceAtMost(0f)) / 180f)).coerceIn(0.25f, 1f)
 
     AnimatedVisibility(
         visible = visible,
@@ -71,6 +100,29 @@ fun PersonaFeedbackBanners(
             shadowElevation = 10.dp,
             modifier = Modifier
                 .fillMaxWidth()
+                .offset { IntOffset(animX.roundToInt(), animY.roundToInt()) }
+                .alpha(fadeProgress)
+                .pointerInput(errorMessage, successMessage) {
+                    detectDragGestures(
+                        onDragEnd = {
+                            if (dragY < -40f || abs(dragX) > 75f) {
+                                onClearMessages()
+                            } else {
+                                dragX = 0f
+                                dragY = 0f
+                            }
+                        },
+                        onDragCancel = {
+                            dragX = 0f
+                            dragY = 0f
+                        },
+                        onDrag = { change, dragAmount ->
+                            change.consume()
+                            dragX += dragAmount.x
+                            dragY = (dragY + dragAmount.y).coerceAtMost(18f)
+                        }
+                    )
+                }
                 .pressScale()
         ) {
             Row(
@@ -79,7 +131,6 @@ fun PersonaFeedbackBanners(
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Icono circular
                 Box(
                     modifier = Modifier
                         .size(36.dp)
@@ -97,7 +148,6 @@ fun PersonaFeedbackBanners(
 
                 Spacer(Modifier.width(12.dp))
 
-                // Mensaje informativo
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = if (esError) "Aviso del Sistema" else "Operación Exitosa",
@@ -116,7 +166,6 @@ fun PersonaFeedbackBanners(
 
                 Spacer(Modifier.width(8.dp))
 
-                // Boton de cierre manual
                 IconButton(
                     onClick = onClearMessages,
                     modifier = Modifier
