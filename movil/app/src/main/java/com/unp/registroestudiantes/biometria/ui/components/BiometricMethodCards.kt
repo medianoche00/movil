@@ -34,7 +34,8 @@ import coil3.compose.AsyncImage
 fun EnrollmentFingerprintCard(
     vinculada: Boolean,
     onVincularClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    esModoEdicion: Boolean = false
 ) {
     val accentColor = if (vinculada) Color(0xFF2E7D32) else MaterialTheme.colorScheme.primary
 
@@ -90,7 +91,9 @@ fun EnrollmentFingerprintCard(
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
             ) {
                 Text(
-                    text = if (vinculada) "Vinculada" else "Vincular",
+                    text = if (vinculada) {
+                        if (esModoEdicion) "Cambiar" else "Vinculada"
+                    } else "Vincular",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold
                 )

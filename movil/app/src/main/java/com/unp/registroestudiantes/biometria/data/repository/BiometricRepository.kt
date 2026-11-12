@@ -100,23 +100,39 @@ class BiometricRepository {
 
     /** Registra o actualiza un usuario en Supabase y sincroniza el almacenamiento local. */
     suspend fun insert(context: Context, data: UsuarioBiometricoWrite): UsuarioBiometrico {
+        val cleanDni = data.dni.trim()
         val guardadoRemoto = runCatching {
             Supa.client.from(TABLE_NAME)
-                .upsert(data) { select() }
+                .upsert(data.copy(dni = cleanDni)) { select() }
                 .decodeSingle<UsuarioBiometricoRow>()
                 .toDomain()
         }.getOrElse { error ->
-            val msg = error.message.orEmpty().lowercase()
-            if (msg.contains("duplicate") || msg.contains("23505") || msg.contains("unique")) {
-                throw IllegalStateException("DUPLICATE_DNI")
+            // Si el upsert presentara conflicto por llave primaria, intentar actualización explícita
+            runCatching {
+                Supa.client.from(TABLE_NAME)
+                    .update(data.copy(dni = cleanDni)) {
+                        select()
+                        filter { eq("dni", cleanDni) }
+                    }
+                    .decodeSingle<UsuarioBiometricoRow>()
+                    .toDomain()
+            }.getOrElse {
+                val msg = error.message.orEmpty().lowercase()
+                if (msg.contains("duplicate") || msg.contains("23505") || msg.contains("unique")) {
+                    throw IllegalStateException("DUPLICATE_DNI")
+                }
+                throw error
             }
-            throw error
         }
 
         guardarEnRespaldoLocal(context, guardadoRemoto)
         recordarUltimoDni(context, guardadoRemoto.dni)
         return guardadoRemoto
     }
+
+    /** Actualiza la biometria o datos de un usuario existente en Supabase. */
+    suspend fun update(context: Context, data: UsuarioBiometricoWrite): UsuarioBiometrico =
+        insert(context, data)
 
     /** Sube la fotografia de reconocimiento facial a Supabase Storage y retorna su URL publica. */
     suspend fun uploadFacePhoto(context: Context, dni: String, imageBytes: ByteArray): String {

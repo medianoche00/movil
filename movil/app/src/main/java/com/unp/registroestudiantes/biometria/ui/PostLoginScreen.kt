@@ -7,8 +7,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
-import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -17,7 +17,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
@@ -35,6 +34,7 @@ fun PostLoginScreen(
     metodoAutenticacion: String,
     onIrAPanelAcademico: () -> Unit,
     onCerrarSesion: () -> Unit,
+    onEditarBiometria: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val nombreMostrar = usuario?.nombre ?: "Usuario Autenticado"
@@ -161,59 +161,7 @@ fun PostLoginScreen(
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
-
-            // 2. Bloque Central "En Construccion" (Fiel al boceto del Trabajo N°04)
-            ElevatedCard(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.elevatedCardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ),
-                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(28.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(68.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(Color(0xFFF59E0B).copy(alpha = 0.16f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Build,
-                            contentDescription = null,
-                            tint = Color(0xFFF59E0B),
-                            modifier = Modifier.size(34.dp)
-                        )
-                    }
-
-                    Text(
-                        text = "En Construcción",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 21.sp,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-
-                    Text(
-                        text = "El control de acceso biométrico se completó correctamente. El módulo principal del tema se encuentra en construcción.",
-                        fontSize = 13.sp,
-                        lineHeight = 19.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            // 3. Acciones Inferiores: Panel Academico (Trabajo N°03) y Salir
+            // 2. Acciones: Panel Académico (Trabajo N°03), Modificar Biometría y Salir
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -232,6 +180,25 @@ fun PostLoginScreen(
                     Spacer(Modifier.width(8.dp))
                     Text(
                         text = "Ir al Panel Académico (Trabajo N° 03)",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onEditarBiometria,
+                    shape = RoundedCornerShape(16.dp),
+                    contentPadding = PaddingValues(vertical = 14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Fingerprint,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "Modificar Datos Biométricos (Rostro / Huella)",
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp
                     )

@@ -132,6 +132,19 @@ class PersonaViewModel(
         }
     }
 
+    /** Restablece completamente el formulario y la vista al salir o volver al menú. */
+    fun limpiarAlSalir() {
+        nuevo()
+        _state.update {
+            it.copy(
+                vistaActual = PersonaVista.FORMULARIO,
+                personaSeleccionadaDetalle = null,
+                errorMessage = null,
+                successMessage = null
+            )
+        }
+    }
+
     /** Busca una persona por su DNI. */
     fun buscarPorDni(dni: String) {
         val errorDni = PersonaValidator.validarDni(dni)
@@ -195,6 +208,26 @@ class PersonaViewModel(
         viewModelScope.launch {
             _state.update { it.copy(saving = true, errorMessage = null) }
             try {
+                // Obtener lista completa para verificar duplicidad antes de insertar
+                val listaActual = if (s.directorio.isNotEmpty()) {
+                    s.directorio
+                } else {
+                    withContext(Dispatchers.IO) { repository.getAll() }
+                }
+
+                val errorDuplicado = PersonaValidator.validarDuplicidad(
+                    dni = s.dni,
+                    nombres = s.nombres,
+                    apellidos = s.apellidos,
+                    correo = s.correoElectronico,
+                    personasExistentes = listaActual,
+                    dniExcluir = null
+                )
+                if (errorDuplicado != null) {
+                    _state.update { it.copy(saving = false, errorMessage = errorDuplicado) }
+                    return@launch
+                }
+
                 val fotoUrl = subirFotoSiExiste(context, s)
                 val data = PersonaWrite(
                     dni = s.dni.trim(),
@@ -207,11 +240,10 @@ class PersonaViewModel(
                     foto = fotoUrl
                 )
                 val creada = withContext(Dispatchers.IO) { repository.insert(data) }
+                nuevo()
                 _state.update {
                     it.copy(
                         saving = false,
-                        personaActual = creada,
-                        fotoPath = creada.foto,
                         successMessage = "Persona \"${creada.nombreCompleto}\" guardada exitosamente."
                     )
                 }
@@ -246,6 +278,26 @@ class PersonaViewModel(
         viewModelScope.launch {
             _state.update { it.copy(saving = true, errorMessage = null) }
             try {
+                // Obtener lista completa para verificar duplicidad excluyendo la persona actual
+                val listaActual = if (s.directorio.isNotEmpty()) {
+                    s.directorio
+                } else {
+                    withContext(Dispatchers.IO) { repository.getAll() }
+                }
+
+                val errorDuplicado = PersonaValidator.validarDuplicidad(
+                    dni = s.dni,
+                    nombres = s.nombres,
+                    apellidos = s.apellidos,
+                    correo = s.correoElectronico,
+                    personasExistentes = listaActual,
+                    dniExcluir = s.personaActual.dni
+                )
+                if (errorDuplicado != null) {
+                    _state.update { it.copy(saving = false, errorMessage = errorDuplicado) }
+                    return@launch
+                }
+
                 val fotoUrl = subirFotoSiExiste(context, s)
                 val data = PersonaWrite(
                     dni = s.dni.trim(),

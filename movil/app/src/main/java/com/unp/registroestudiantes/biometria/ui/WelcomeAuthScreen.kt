@@ -539,13 +539,13 @@ fun WelcomeAuthScreen(
                     horizontalArrangement = Arrangement.Center
                 ) {
                     Text(
-                        text = "¿No tienes cuenta? ",
-                        fontSize = 14.sp,
+                        text = "¿Deseas registrarte o actualizar tu biometría? ",
+                        fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "Regístrate",
-                        fontSize = 14.sp,
+                        text = "Regístrate / Editar",
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF2563EB),
                         textDecoration = TextDecoration.Underline,

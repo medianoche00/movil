@@ -46,12 +46,23 @@ fun PersonaScreen(
     var mostrarDialogoEliminar by remember { mutableStateOf(false) }
     var fotoZoomPersona by remember { mutableStateOf<Pair<Any, String>?>(null) }
 
+    fun salirAlMenu() {
+        viewModel.limpiarAlSalir()
+        onBack()
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.limpiarAlSalir()
+        }
+    }
+
     // Manejo de retroceso del sistema
     BackHandler {
         when (state.vistaActual) {
             PersonaVista.DETALLE -> viewModel.abrirDirectorio()
             PersonaVista.DIRECTORIO -> viewModel.volverAlFormulario()
-            PersonaVista.FORMULARIO -> onBack()
+            PersonaVista.FORMULARIO -> salirAlMenu()
         }
     }
 
@@ -141,7 +152,7 @@ fun PersonaScreen(
                                 }
                             },
                             navigationIcon = {
-                                IconButton(onClick = onBack) {
+                                IconButton(onClick = ::salirAlMenu) {
                                     Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver al menú")
                                 }
                             },

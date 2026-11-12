@@ -36,7 +36,7 @@ CREATE TABLE personas (
     direccion           VARCHAR(200) NOT NULL,
     codigo_profesion    VARCHAR(15) NOT NULL,
     celular             CHAR(9) NOT NULL,
-    correo_electronico  VARCHAR(150) NOT NULL,
+    correo_electronico  VARCHAR(150) NOT NULL UNIQUE,
     foto                TEXT,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
 

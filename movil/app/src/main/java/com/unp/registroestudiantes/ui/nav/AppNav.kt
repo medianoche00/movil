@@ -86,7 +86,6 @@ fun AppNav(
     // Instancia unica de los ViewModels compartida por las pantallas
     val vm: StudentViewModel = viewModel()
     val contactVm: ContactViewModel = viewModel()
-    val personaVm: PersonaViewModel = viewModel()     // Trabajo N°03
     val biometricVm: BiometricViewModel = viewModel() // Trabajo N°04
 
     // Observa el estado reactivo del ViewModel
@@ -150,9 +149,13 @@ fun AppNav(
 
             // Destino: Registro de Personas - Trabajo N°03
             composable(PERSONAS) {
+                val personaVm: PersonaViewModel = viewModel()
                 PersonaScreen(
                     viewModel = personaVm,
-                    onBack = { nav.popBackStack() }
+                    onBack = {
+                        personaVm.limpiarAlSalir()
+                        nav.popBackStack()
+                    }
                 )
             }
 

@@ -2,6 +2,7 @@ package com.unp.registroestudiantes.biometria.ui
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.unp.registroestudiantes.biometria.data.model.UsuarioBiometrico
@@ -73,10 +74,18 @@ class BiometricViewModel(
         _state.update { it.copy(mostrarCampoContrasena = false, loginContrasena = "") }
     }
 
-    // Actualizadores de campos en Registro
-    fun onRegDniChange(v: String) {
+    // Actualizadores de campos en Registro y Modificacion
+    fun onRegDniChange(v: String, context: Context) {
         val soloDigitos = v.filter { it.isDigit() }.take(8)
-        _state.update { it.copy(regDni = soloDigitos) }
+        _state.update {
+            it.copy(
+                regDni = soloDigitos,
+                esModoEdicion = if (soloDigitos.length < 8) false else it.esModoEdicion
+            )
+        }
+        if (soloDigitos.length == 8) {
+            buscarYPrecargarUsuario(context, soloDigitos)
+        }
     }
 
     fun onRegNombreChange(v: String) {
@@ -87,25 +96,102 @@ class BiometricViewModel(
         _state.update { it.copy(regContrasena = v) }
     }
 
+    /** Busca si un DNI ya esta registrado y precarga sus datos para permitir su edicion */
+    fun buscarYPrecargarUsuario(context: Context, dni: String) {
+        if (dni.length != 8) return
+        viewModelScope.launch {
+            _state.update { it.copy(buscandoUsuarioDni = true) }
+            val usuario = withContext(Dispatchers.IO) {
+                runCatching { repository.getByDni(context, dni) }.getOrNull()
+            }
+            _state.update { it.copy(buscandoUsuarioDni = false) }
+
+            if (usuario != null) {
+                val fotoUri = if (usuario.imagenFacial.isNotBlank()) {
+                    runCatching { Uri.parse(usuario.imagenFacial) }.getOrNull()
+                } else null
+
+                _state.update {
+                    it.copy(
+                        regDni = usuario.dni,
+                        regNombre = usuario.nombre,
+                        regContrasena = usuario.contrasena,
+                        regHuellaToken = usuario.huella,
+                        regFotoFacialUri = fotoUri,
+                        regFotoFacialBytes = null,
+                        regVectorFacial = usuario.vectorFacial,
+                        esModoEdicion = true,
+                        successMessage = "Usuario encontrado: ${usuario.nombre}. Puedes cambiar tu rostro o huella."
+                    )
+                }
+            } else {
+                _state.update { it.copy(esModoEdicion = false) }
+            }
+        }
+    }
+
     // Navegacion entre pantallas
-    fun irARegistro() {
+    fun irARegistro(context: Context? = null) {
+        val dniActual = _state.value.loginDni.trim()
         _state.update {
             it.copy(
                 vistaActual = BiometricVista.REGISTRO,
+                regDni = if (dniActual.length == 8) dniActual else it.regDni,
                 mostrarCampoContrasena = false,
                 dniInlineError = null,
                 errorMessage = null,
                 successMessage = null
             )
         }
+        if (context != null && dniActual.length == 8) {
+            buscarYPrecargarUsuario(context, dniActual)
+        }
+    }
+
+    fun irAEditarBiometria(context: Context) {
+        val user = _state.value.usuarioAutenticado
+        if (user != null) {
+            val fotoUri = if (user.imagenFacial.isNotBlank()) {
+                runCatching { Uri.parse(user.imagenFacial) }.getOrNull()
+            } else null
+
+            _state.update {
+                it.copy(
+                    vistaActual = BiometricVista.REGISTRO,
+                    regDni = user.dni,
+                    regNombre = user.nombre,
+                    regContrasena = user.contrasena,
+                    regHuellaToken = user.huella,
+                    regFotoFacialUri = fotoUri,
+                    regFotoFacialBytes = null,
+                    regVectorFacial = user.vectorFacial,
+                    esModoEdicion = true,
+                    errorMessage = null,
+                    successMessage = "Modifica tu rostro o huella y presiona Actualizar Datos."
+                )
+            }
+        } else {
+            irARegistro(context)
+        }
     }
 
     fun volverABienvenida() {
+        val dni = _state.value.regDni
         _state.update {
             it.copy(
                 vistaActual = BiometricVista.BIENVENIDA,
                 mostrarModalHuella = false,
                 mostrarEscanerFacial = false,
+                esModoEdicion = false,
+                buscandoUsuarioDni = false,
+                loginDni = if (dni.length == 8) dni else it.loginDni,
+                regDni = "",
+                regNombre = "",
+                regContrasena = "",
+                regHuellaToken = "",
+                regFotoFacialUri = null,
+                regFotoFacialBytes = null,
+                regVectorFacial = "",
                 dniInlineError = null,
                 errorMessage = null,
                 successMessage = null
@@ -488,7 +574,7 @@ class BiometricViewModel(
         }
     }
 
-    /** Guarda el usuario con su DNI, Nombre, Contrasena, Huella y Rostro. */
+    /** Guarda o actualiza el usuario con su DNI, Nombre, Contrasena, Huella y Rostro. */
     fun guardarUsuario(context: Context) {
         val s = _state.value
         val error = BiometricValidator.validarRegistro(
@@ -506,9 +592,13 @@ class BiometricViewModel(
         viewModelScope.launch {
             _state.update { it.copy(saving = true, errorMessage = null, successMessage = null) }
             try {
-                val bytes = s.regFotoFacialBytes ?: ByteArray(0)
-                val fotoUrl = withContext(Dispatchers.IO) {
-                    repository.uploadFacePhoto(context, s.regDni, bytes)
+                // Subir fotografia solo si fue capturada nuevamente; si no, conservar la existente
+                val fotoUrl = if (s.regFotoFacialBytes != null && s.regFotoFacialBytes.isNotEmpty()) {
+                    withContext(Dispatchers.IO) {
+                        repository.uploadFacePhoto(context, s.regDni, s.regFotoFacialBytes)
+                    }
+                } else {
+                    s.regFotoFacialUri?.toString().orEmpty()
                 }
 
                 val payload = UsuarioBiometricoWrite(
@@ -524,13 +614,28 @@ class BiometricViewModel(
                     repository.insert(context, payload)
                 }
 
+                val mensajeExito = if (s.esModoEdicion) {
+                    "Datos biométricos actualizados correctamente para \"${creado.nombre}\"."
+                } else {
+                    "Cuenta de \"${creado.nombre}\" creada correctamente."
+                }
+
+                val destino = if (s.usuarioAutenticado != null && s.usuarioAutenticado.dni == creado.dni) {
+                    BiometricVista.POST_LOGIN
+                } else {
+                    BiometricVista.BIENVENIDA
+                }
+
                 _state.update {
                     it.copy(
                         saving = false,
-                        vistaActual = BiometricVista.BIENVENIDA,
+                        vistaActual = destino,
                         loginDni = creado.dni,
                         loginContrasena = "",
                         mostrarCampoContrasena = false,
+                        usuarioAutenticado = if (it.usuarioAutenticado != null && it.usuarioAutenticado.dni == creado.dni) creado else it.usuarioAutenticado,
+                        esModoEdicion = false,
+                        buscandoUsuarioDni = false,
                         regDni = "",
                         regNombre = "",
                         regContrasena = "",
@@ -538,7 +643,7 @@ class BiometricViewModel(
                         regFotoFacialUri = null,
                         regFotoFacialBytes = null,
                         regVectorFacial = "",
-                        successMessage = "Cuenta de \"${creado.nombre}\" creada correctamente."
+                        successMessage = mensajeExito
                     )
                 }
             } catch (e: Exception) {

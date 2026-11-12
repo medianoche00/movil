@@ -39,6 +39,8 @@ fun RegistroBiometricoScreen(
     rostroVerificado: Boolean,
     analizandoRostro: Boolean,
     saving: Boolean,
+    esModoEdicion: Boolean = false,
+    buscandoUsuario: Boolean = false,
     onDniChange: (String) -> Unit,
     onNombreChange: (String) -> Unit,
     onContrasenaChange: (String) -> Unit,
@@ -56,12 +58,12 @@ fun RegistroBiometricoScreen(
                 title = {
                     Column {
                         Text(
-                            text = "Registrar Usuario",
+                            text = if (esModoEdicion) "Modificar Datos Biométricos" else "Registrar Usuario",
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
                         )
                         Text(
-                            text = "Completa tus datos y biometría",
+                            text = if (esModoEdicion) "Actualiza tu huella, rostro o datos" else "Completa tus datos y biometría",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -69,7 +71,7 @@ fun RegistroBiometricoScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onVolver, enabled = !saving) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver a Login")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -106,12 +108,19 @@ fun RegistroBiometricoScreen(
                         placeholder = { Text("8 dígitos numéricos") },
                         leadingIcon = { Icon(Icons.Default.Badge, null, modifier = Modifier.size(20.dp)) },
                         trailingIcon = {
-                            Text(
-                                text = "${dni.length}/8",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(end = 10.dp)
-                            )
+                            if (buscandoUsuario) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text(
+                                    text = "${dni.length}/8",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(end = 10.dp)
+                                )
+                            }
                         },
                         shape = RoundedCornerShape(14.dp),
                         keyboardOptions = KeyboardOptions(
@@ -121,6 +130,38 @@ fun RegistroBiometricoScreen(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    // Aviso cuando se edita un usuario existente
+                    if (esModoEdicion) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = "Usuario encontrado: $nombre. Puedes volver a capturar tu rostro, cambiar tu huella o modificar tus datos.",
+                                    fontSize = 12.sp,
+                                    lineHeight = 16.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
 
                     // 2. Nombre
                     OutlinedTextField(
@@ -171,7 +212,8 @@ fun RegistroBiometricoScreen(
                     // 4. Tarjeta de Enrolamiento de Huella Dactilar
                     EnrollmentFingerprintCard(
                         vinculada = huellaVinculada,
-                        onVincularClick = onVincularHuella
+                        onVincularClick = onVincularHuella,
+                        esModoEdicion = esModoEdicion
                     )
 
                     // 5. Tarjeta de Imagen para Reconocimiento Facial
@@ -184,7 +226,7 @@ fun RegistroBiometricoScreen(
                 }
             }
 
-            // Botones inferiores Cancelar y Guardar Usuario
+            // Botones inferiores Cancelar y Guardar/Actualizar Usuario
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -213,11 +255,23 @@ fun RegistroBiometricoScreen(
                             color = MaterialTheme.colorScheme.onPrimary
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text("Guardando...", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text(
+                            text = if (esModoEdicion) "Actualizando..." else "Guardando...",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp
+                        )
                     } else {
-                        Icon(Icons.Default.Save, null, modifier = Modifier.size(18.dp))
+                        Icon(
+                            imageVector = if (esModoEdicion) Icons.Default.Check else Icons.Default.Save,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
                         Spacer(Modifier.width(6.dp))
-                        Text("Guardar Usuario", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text(
+                            text = if (esModoEdicion) "Actualizar Datos" else "Guardar Usuario",
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp
+                        )
                     }
                 }
             }

@@ -109,17 +109,17 @@ object FaceAnalyzerUtil {
 
         val centerX = box.exactCenterX() / imgW
         val centerY = box.exactCenterY() / imgH
-        if (abs(centerX - 0.5f) > 0.18f || abs(centerY - 0.5f) > 0.20f) {
+        if (abs(centerX - 0.5f) > 0.20f || abs(centerY - 0.5f) > 0.22f) {
             return EstadoFrameFacial.Desalineado("Centra tu rostro dentro del recuadro guía")
         }
 
-        if (abs(face.headEulerAngleY) > 15f || abs(face.headEulerAngleZ) > 13f || abs(face.headEulerAngleX) > 15f) {
+        if (abs(face.headEulerAngleY) > 18f || abs(face.headEulerAngleZ) > 16f || abs(face.headEulerAngleX) > 18f) {
             return EstadoFrameFacial.Desalineado("Mira directamente de frente sin inclinar la cabeza")
         }
 
         val leftOpen = face.leftEyeOpenProbability ?: 0.9f
         val rightOpen = face.rightEyeOpenProbability ?: 0.9f
-        if (leftOpen < 0.35f || rightOpen < 0.35f) {
+        if (leftOpen < 0.22f || rightOpen < 0.22f) {
             return EstadoFrameFacial.Desalineado("Mantén ambos ojos abiertos mirando a la cámara")
         }
 
@@ -270,7 +270,7 @@ object FaceAnalyzerUtil {
 
     /**
      * Extrae 144 caracteristicas de gradientes orientados (6x6 celdas x 4 orientaciones)
-     * sobre el rostro alineado de 96x96 y las estandariza con Z-Score (media 0, varianza 1).
+     * sobre el rostro alineado de 96x96 con normalizacion previa de luminancia para invarianza a la luz.
      */
     private fun extraerBloqueHoG(aligned96: Bitmap): FloatArray {
         val size = 96
@@ -278,12 +278,27 @@ object FaceAnalyzerUtil {
         aligned96.getPixels(pixels, 0, size, 0, 0, size, size)
 
         val lum = FloatArray(size * size)
+        var sumLum = 0f
         for (i in pixels.indices) {
             val c = pixels[i]
             val r = Color.red(c)
             val g = Color.green(c)
             val b = Color.blue(c)
-            lum[i] = (0.299f * r + 0.587f * g + 0.114f * b) / 255f
+            val l = (0.299f * r + 0.587f * g + 0.114f * b) / 255f
+            lum[i] = l
+            sumLum += l
+        }
+
+        // Normalizacion global de iluminacion: elimina el sesgo entre habitaciones oscuras/claras
+        val meanLum = sumLum / (size * size)
+        var varLum = 0f
+        for (i in pixels.indices) {
+            val diff = lum[i] - meanLum
+            varLum += diff * diff
+        }
+        val stdLum = sqrt(varLum / (size * size)).coerceAtLeast(0.08f)
+        for (i in pixels.indices) {
+            lum[i] = (lum[i] - meanLum) / stdLum
         }
 
         val gridCells = 6
@@ -333,15 +348,32 @@ object FaceAnalyzerUtil {
     }
 
     /**
-     * Extrae 64 caracteristicas de contraste tonal y cromatico local (malla 8x8 de la zona
-     * interna del rostro alineado) estandarizadas con Z-Score (media 0, varianza 1).
+     * Extrae 64 caracteristicas de contraste tonal relativo (malla 8x8 de la zona interna del rostro),
+     * restando la luminancia media facial para que no dependa de la intensidad o fuente de luz.
      */
     private fun extraerBloqueApariencia(aligned96: Bitmap): FloatArray {
+        val size = 96
         val grid = 8
         val start = 8
         val span = 10 // 8 + 8*10 = 88 (cubre la region interna 8..88 de 96)
         val appearance = FloatArray(DIM_APPEARANCE)
         var idx = 0
+
+        val pixels = IntArray(size * size)
+        aligned96.getPixels(pixels, 0, size, 0, 0, size, size)
+
+        var faceMeanLum = 0f
+        var faceCount = 0
+        for (y in 8 until 88) {
+            val row = y * size
+            for (x in 8 until 88) {
+                val c = pixels[row + x]
+                val luma = (0.299f * Color.red(c) + 0.587f * Color.green(c) + 0.114f * Color.blue(c)) / 255f
+                faceMeanLum += luma
+                faceCount++
+            }
+        }
+        faceMeanLum = if (faceCount > 0) faceMeanLum / faceCount else 0.5f
 
         for (gy in 0 until grid) {
             for (gx in 0 until grid) {
@@ -350,14 +382,15 @@ object FaceAnalyzerUtil {
                 val y0 = start + gy * span
                 val x0 = start + gx * span
                 for (y in y0 until (y0 + span)) {
+                    val row = y * size
                     for (x in x0 until (x0 + span)) {
-                        val c = aligned96.getPixel(x, y)
+                        val c = pixels[row + x]
                         val r = Color.red(c) / 255f
                         val g = Color.green(c) / 255f
                         val b = Color.blue(c) / 255f
                         val luma = 0.299f * r + 0.587f * g + 0.114f * b
-                        val rgDiff = (r - g) * 0.35f
-                        sumTone += (luma + rgDiff)
+                        val rgDiff = (r - g) * 0.25f
+                        sumTone += (luma - faceMeanLum) + rgDiff
                         count++
                     }
                 }

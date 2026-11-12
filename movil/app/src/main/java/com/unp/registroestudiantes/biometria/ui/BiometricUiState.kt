@@ -25,7 +25,7 @@ data class BiometricUiState(
     val dniInlineError: String? = null,
     val dniShakeTrigger: Int = 0,
 
-    // Campos de Registro de Usuario
+    // Campos de Registro y Modificacion de Usuario
     val regDni: String = "",
     val regNombre: String = "",
     val regContrasena: String = "",
@@ -33,6 +33,8 @@ data class BiometricUiState(
     val regFotoFacialUri: Uri? = null,
     val regFotoFacialBytes: ByteArray? = null,
     val regVectorFacial: String = "",
+    val esModoEdicion: Boolean = false,
+    val buscandoUsuarioDni: Boolean = false,
 
     // Control del modal de huella dactilar (errores dentro del modal)
     val mostrarModalHuella: Boolean = false,
@@ -62,5 +64,5 @@ data class BiometricUiState(
         get() = regHuellaToken.isNotBlank()
 
     val rostroRegistroListo: Boolean
-        get() = regFotoFacialUri != null && regFotoFacialBytes != null && regVectorFacial.isNotBlank()
+        get() = (regFotoFacialBytes != null || regFotoFacialUri != null) && regVectorFacial.isNotBlank()
 }

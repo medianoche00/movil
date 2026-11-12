@@ -1,6 +1,7 @@
 package com.unp.registroestudiantes.persona.domain
 
 import android.util.Patterns
+import com.unp.registroestudiantes.persona.data.model.Persona
 
 /*
  * Archivo: PersonaValidator.kt
@@ -43,6 +44,61 @@ object PersonaValidator {
         else -> null
     }
 
+    private fun normalizarEspacios(texto: String): String =
+        texto.trim().replace("\\s+".toRegex(), " ")
+
+    /**
+     * Valida que no exista duplicidad de DNI, Correo Electrónico o Nombre Completo.
+     * @param dniExcluir DNI de la persona que se está editando (en caso de actualización).
+     * @return Mensaje de error descriptivo si hay duplicidad, o null si los datos son válidos y únicos.
+     */
+    fun validarDuplicidad(
+        dni: String,
+        nombres: String,
+        apellidos: String,
+        correo: String,
+        personasExistentes: List<Persona>,
+        dniExcluir: String? = null
+    ): String? {
+        val cleanDni = dni.trim()
+        val cleanNombres = normalizarEspacios(nombres)
+        val cleanApellidos = normalizarEspacios(apellidos)
+        val cleanCorreo = correo.trim()
+
+        val otras = if (dniExcluir != null) {
+            personasExistentes.filter { it.dni != dniExcluir }
+        } else {
+            personasExistentes
+        }
+
+        // 1. Duplicidad de DNI (cuando es nuevo registro)
+        if (dniExcluir == null) {
+            val duplicadoDni = otras.firstOrNull { it.dni == cleanDni }
+            if (duplicadoDni != null) {
+                return "Ya existe una persona registrada con el DNI $cleanDni (${duplicadoDni.nombreCompleto})."
+            }
+        }
+
+        // 2. Duplicidad de Correo Electrónico
+        val duplicadoCorreo = otras.firstOrNull {
+            it.correoElectronico.trim().equals(cleanCorreo, ignoreCase = true)
+        }
+        if (duplicadoCorreo != null) {
+            return "El correo \"$cleanCorreo\" ya se encuentra registrado para ${duplicadoCorreo.nombreCompleto} (DNI ${duplicadoCorreo.dni})."
+        }
+
+        // 3. Duplicidad de Nombre Completo (Nombres y Apellidos)
+        val duplicadoNombre = otras.firstOrNull {
+            normalizarEspacios(it.nombres).equals(cleanNombres, ignoreCase = true) &&
+            normalizarEspacios(it.apellidos).equals(cleanApellidos, ignoreCase = true)
+        }
+        if (duplicadoNombre != null) {
+            return "Ya existe una persona registrada con el nombre \"${duplicadoNombre.nombreCompleto}\" (DNI ${duplicadoNombre.dni})."
+        }
+
+        return null
+    }
+
     /** Convierte excepciones tecnicas en mensajes amigables sin exponer detalles internos. */
     fun mapearError(e: Exception, operacion: String, dniActual: String): String {
         val raw = e.message.orEmpty()
@@ -53,6 +109,8 @@ object PersonaValidator {
                 "El celular debe ser exactamente 9 dígitos numéricos."
             raw.contains("fk_persona_profesion", ignoreCase = true) ->
                 "La profesión seleccionada no existe en el catálogo."
+            raw.contains("correo", ignoreCase = true) && (raw.contains("duplicate", ignoreCase = true) || raw.contains("unique", ignoreCase = true)) ->
+                "El correo electrónico ya se encuentra registrado por otra persona."
             raw.contains("duplicate", ignoreCase = true) || raw.contains("unique", ignoreCase = true) || raw.contains("23505") ->
                 "Ya existe una persona registrada con el DNI $dniActual."
             raw.contains("network", ignoreCase = true) || raw.contains("timeout", ignoreCase = true) || raw.contains("connection", ignoreCase = true) ->

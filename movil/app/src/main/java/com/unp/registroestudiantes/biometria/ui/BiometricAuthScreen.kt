@@ -113,7 +113,7 @@ fun BiometricAuthScreen(
                     onMostrarContrasenaClick = { viewModel.desplegarContrasenaInline(context) },
                     onOcultarContrasenaClick = viewModel::ocultarContrasenaInline,
                     onConfirmarContrasena = { viewModel.loginConContrasena(context) },
-                    onIrARegistro = viewModel::irARegistro,
+                    onIrARegistro = { viewModel.irARegistro(context) },
                     onToggleTheme = onToggleTheme
                 )
             }
@@ -128,7 +128,9 @@ fun BiometricAuthScreen(
                     rostroVerificado = state.rostroRegistroListo,
                     analizandoRostro = state.procesandoRostro,
                     saving = state.saving,
-                    onDniChange = viewModel::onRegDniChange,
+                    esModoEdicion = state.esModoEdicion,
+                    buscandoUsuario = state.buscandoUsuarioDni,
+                    onDniChange = { dni -> viewModel.onRegDniChange(dni, context) },
                     onNombreChange = viewModel::onRegNombreChange,
                     onContrasenaChange = viewModel::onRegContrasenaChange,
                     onVincularHuella = viewModel::abrirModalHuellaRegistro,
@@ -147,7 +149,8 @@ fun BiometricAuthScreen(
                     usuario = state.usuarioAutenticado,
                     metodoAutenticacion = state.metodoAutenticacion,
                     onIrAPanelAcademico = onIrAPanelAcademico,
-                    onCerrarSesion = viewModel::cerrarSesion
+                    onCerrarSesion = viewModel::cerrarSesion,
+                    onEditarBiometria = { viewModel.irAEditarBiometria(context) }
                 )
             }
         }
