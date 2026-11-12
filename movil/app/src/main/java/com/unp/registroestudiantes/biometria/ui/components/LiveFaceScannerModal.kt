@@ -325,15 +325,15 @@ fun LiveFaceScannerModal(
                             modifier = Modifier.fillMaxSize()
                         )
 
-                        // Silueta guia interior
+                        // Marco guia interior armonizado con las esquinas redondeadas del visor
                         Canvas(modifier = Modifier.fillMaxSize()) {
-                            val ovalW = size.width * 0.66f
-                            val ovalH = size.height * 0.68f
+                            val guideW = size.width * 0.74f
+                            val guideH = size.height * 0.76f
                             drawRoundRect(
-                                color = colorMarco.copy(alpha = 0.45f),
-                                topLeft = Offset((size.width - ovalW) / 2f, (size.height - ovalH) / 2f),
-                                size = Size(ovalW, ovalH),
-                                cornerRadius = CornerRadius(ovalW / 2f, ovalW / 2f),
+                                color = colorMarco.copy(alpha = 0.40f),
+                                topLeft = Offset((size.width - guideW) / 2f, (size.height - guideH) / 2f),
+                                size = Size(guideW, guideH),
+                                cornerRadius = CornerRadius(34.dp.toPx(), 34.dp.toPx()),
                                 style = Stroke(width = 2.dp.toPx())
                             )
                         }
@@ -400,22 +400,28 @@ fun LiveFaceScannerModal(
                             .clip(RoundedCornerShape(50))
                     )
 
-                    // Pildora o recuadro de estado dentro del escaner
+                    // Pildora o recuadro de estado dentro del escaner con altura estable
                     Surface(
                         shape = RoundedCornerShape(16.dp),
                         color = colorMarco.copy(alpha = 0.15f),
                         border = BorderStroke(1.dp, colorMarco.copy(alpha = 0.45f)),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 52.dp)
                     ) {
-                        Text(
-                            text = mensajeGuia,
-                            color = colorMarco,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            lineHeight = 18.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                        )
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                text = mensajeGuia,
+                                color = colorMarco,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp,
+                                lineHeight = 18.sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                 }
 
@@ -430,7 +436,7 @@ fun LiveFaceScannerModal(
                             shape = RoundedCornerShape(16.dp),
                             border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f)),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                            contentPadding = PaddingValues(vertical = 14.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
                             modifier = Modifier.weight(1f)
                         ) {
                             Text(
@@ -447,7 +453,7 @@ fun LiveFaceScannerModal(
                                 containerColor = Color(0xFF2563EB),
                                 contentColor = Color.White
                             ),
-                            contentPadding = PaddingValues(vertical = 14.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
                             modifier = Modifier.weight(1f)
                         ) {
                             Icon(
@@ -469,7 +475,7 @@ fun LiveFaceScannerModal(
                         shape = RoundedCornerShape(16.dp),
                         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFCBD5E1)),
-                        contentPadding = PaddingValues(vertical = 13.dp),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 13.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(

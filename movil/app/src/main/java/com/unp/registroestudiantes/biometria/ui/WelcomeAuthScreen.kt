@@ -536,22 +536,23 @@ fun WelcomeAuthScreen(
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "¿Deseas registrarte o actualizar tu biometría? ",
-                        fontSize = 13.sp,
+                        text = "¿No tienes cuenta? ",
+                        fontSize = 13.5.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = "Regístrate / Editar",
-                        fontSize = 13.sp,
+                        text = "Regístrate",
+                        fontSize = 13.5.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF2563EB),
                         textDecoration = TextDecoration.Underline,
                         modifier = Modifier
                             .clickable(enabled = !loading) { onIrARegistro() }
-                            .padding(vertical = 4.dp, horizontal = 2.dp)
+                            .padding(vertical = 4.dp, horizontal = 4.dp)
                     )
                 }
             }

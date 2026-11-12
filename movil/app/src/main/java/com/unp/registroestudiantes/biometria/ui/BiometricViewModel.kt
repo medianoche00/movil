@@ -121,7 +121,8 @@ class BiometricViewModel(
                         regFotoFacialBytes = null,
                         regVectorFacial = usuario.vectorFacial,
                         esModoEdicion = true,
-                        successMessage = "Usuario encontrado: ${usuario.nombre}. Puedes cambiar tu rostro o huella."
+                        errorMessage = null,
+                        successMessage = null
                     )
                 }
             } else {
@@ -167,7 +168,7 @@ class BiometricViewModel(
                     regVectorFacial = user.vectorFacial,
                     esModoEdicion = true,
                     errorMessage = null,
-                    successMessage = "Modifica tu rostro o huella y presiona Actualizar Datos."
+                    successMessage = null
                 )
             }
         } else {

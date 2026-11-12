@@ -77,7 +77,7 @@ fun EnrollmentFingerprintCard(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = if (vinculada) "Huella vinculada (Token listo)" else "Pendiente de vincular",
+                    text = if (vinculada) "Huella registrada" else "Pendiente de vincular",
                     fontSize = 12.sp,
                     color = if (vinculada) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -173,8 +173,8 @@ fun EnrollmentFaceCard(
                 )
                 Text(
                     text = when {
-                        analizando -> "Analizando rostro con ML Kit..."
-                        rostroVerificado -> "Rostro verificado y listo"
+                        analizando -> "Analizando rostro..."
+                        rostroVerificado -> "Rostro verificado"
                         else -> "Sin imagen capturada"
                     },
                     fontSize = 12.sp,

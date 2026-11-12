@@ -179,11 +179,11 @@ fun RegistroBiometricoScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
 
-                    // 3. Contrasena de respaldo
+                    // 3. Contrasena
                     OutlinedTextField(
                         value = contrasena,
                         onValueChange = onContrasenaChange,
-                        label = { Text("Contraseña de respaldo *") },
+                        label = { Text("Contraseña *") },
                         placeholder = { Text("Mínimo 4 caracteres") },
                         leadingIcon = { Icon(Icons.Default.Lock, null, modifier = Modifier.size(20.dp)) },
                         trailingIcon = {
@@ -235,7 +235,7 @@ fun RegistroBiometricoScreen(
                     onClick = onVolver,
                     enabled = !saving,
                     shape = RoundedCornerShape(16.dp),
-                    contentPadding = PaddingValues(vertical = 14.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("Cancelar", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
@@ -245,7 +245,7 @@ fun RegistroBiometricoScreen(
                     onClick = onGuardarUsuario,
                     enabled = !saving,
                     shape = RoundedCornerShape(16.dp),
-                    contentPadding = PaddingValues(vertical = 14.dp),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
                     modifier = Modifier.weight(1.3f)
                 ) {
                     if (saving) {

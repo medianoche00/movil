@@ -265,7 +265,7 @@ fun FingerprintAuthModal(
                             OutlinedButton(
                                 onClick = onCancelar,
                                 shape = RoundedCornerShape(14.dp),
-                                contentPadding = PaddingValues(vertical = 13.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 13.dp),
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Text(
@@ -287,7 +287,7 @@ fun FingerprintAuthModal(
                                         containerColor = Color(0xFF2563EB),
                                         contentColor = Color.White
                                     ),
-                                    contentPadding = PaddingValues(vertical = 13.dp),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 13.dp),
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     Icon(

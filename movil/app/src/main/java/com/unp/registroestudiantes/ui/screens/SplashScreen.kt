@@ -7,11 +7,13 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -19,6 +21,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -193,48 +200,77 @@ fun SplashScreen(onFinished: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Registro de",
-                    color = Color.White.copy(alpha = 0.82f),
-                    fontSize = 34.sp,
-                    fontWeight = FontWeight.Light,
-                    letterSpacing = 3.sp
-                )
-                Text(
-                    text = "Personas",
+                    text = "BioUNP",
                     color = Color.White,
-                    fontSize = 34.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.5.sp
+                    fontSize = 38.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.sp
                 )
 
-                Spacer(Modifier.height(14.dp))
-
-                // Linea horizontal decorativa
-                Box(
-                    modifier = Modifier
-                        .width(44.dp)
-                        .height(1.5.dp)
-                        .background(Color.White.copy(alpha = 0.35f))
-                )
-
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(6.dp))
 
                 Text(
                     text = "Universidad Nacional de Piura",
-                    color = Color.White.copy(alpha = 0.60f),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Normal,
-                    letterSpacing = 0.3.sp,
+                    color = Color.White.copy(alpha = 0.85f),
+                    fontSize = 13.5.sp,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 0.4.sp,
                     textAlign = TextAlign.Center
                 )
+
+                Spacer(Modifier.height(18.dp))
+
+                // Insignia elegante con referencia a detector de huella y facial
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = Color.White.copy(alpha = 0.16f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.28f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Fingerprint,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "Huella",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = "·",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White.copy(alpha = 0.6f)
+                        )
+                        Icon(
+                            imageVector = Icons.Default.Face,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "Rostro Facial",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White
+                        )
+                    }
+                }
             }
         }
 
         // Pie de pantalla discreto
         Text(
-            text = "Sistema de Registro Académico · v1.0",
-            color = Color.White.copy(alpha = 0.30f),
-            fontSize = 10.sp,
+            text = "Acceso Biométrico y Registro Académico · v1.0",
+            color = Color.White.copy(alpha = 0.40f),
+            fontSize = 10.5.sp,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 30.dp)
