@@ -9,17 +9,17 @@ import kotlin.math.sqrt
 
 /*
  * Archivo: FaceComparisonEngine.kt
- * Proposito: Motor matematico de verificacion facial de triple compuerta (Correlacion de Pearson
- *            de media cero sobre HoG alineado + Contraste Z-Score + Proporciones Craneofaciales)
- *            para garantizar que solo el titular registrado sea admitido y rechazar a terceros.
+ * Proposito: Motor de verificacion biometrica 1:1 basado en similitud coseno y distancia
+ *            euclidiana sobre embeddings neuronales de 192 dimensiones (MobileFaceNet TFLite)
+ *            combinado con proporciones craneofaciales (24 dims).
  */
 object FaceComparisonEngine {
 
     data class ResultadoComparacion(
         val coincide: Boolean,
         val porcentajeSimilitud: Int,
-        val scoreHog: Float = 0f,
-        val scoreApariencia: Float = 0f,
+        val scoreEmbedding: Float = 0f,
+        val distanciaEuclidiana: Float = 2f,
         val scoreGeometria: Float = 0f
     )
 
@@ -28,20 +28,21 @@ object FaceComparisonEngine {
         val comparacion: ResultadoComparacion
     )
 
-    // Umbrales calibrados para alta discriminacion biometrica 1:1
-    // Rechaza estrictamente a cualquier tercera persona mientras admite con fidelidad al titular genuino
-    private const val UMBRAL_HOG = 0.60f
-    private const val UMBRAL_GEOMETRIA = 0.64f
-    private const val UMBRAL_APARIENCIA = 0.50f
-    private const val UMBRAL_GLOBAL = 0.66f
+    // Umbrales calibrados para MobileFaceNet (192-D L2-normalizado con Test-Time Augmentation):
+    // - Dos personas distintas obtienen cosSim en [-0.10, 0.50] (distancia > 1.00)
+    // - La misma persona (incluso en otro celular o iluminacion) obtiene cosSim en [0.70, 0.96]
+    private const val UMBRAL_COSENO_ESTRICTO = 0.68f
+    private const val UMBRAL_DISTANCIA_MAX = 0.80f
+    private const val UMBRAL_GEOMETRIA_MIN = 0.60f
+    private const val UMBRAL_GLOBAL = 0.70f
 
     fun esDescriptorCompleto(vector: String): Boolean {
         return parseVector(vector).size == FaceAnalyzerUtil.TOTAL_DIM
     }
 
     /**
-     * Compara dos descriptores faciales de 232 dimensiones exigiendo verificacion
-     * simultanea en estructura HoG, proporciones anatomicas craneofaciales y apariencia tonal relativa.
+     * Compara dos descriptores faciales hibridos de 216 dimensiones (192 MobileFaceNet + 24 Geometria),
+     * exigiendo coincidencia simultanea en el espacio neuronal de identidad y en geometria facial.
      */
     fun compararRostros(vectorRegistrado: String, vectorActual: String): ResultadoComparacion {
         val v1 = parseVector(vectorRegistrado)
@@ -51,50 +52,41 @@ object FaceComparisonEngine {
             return ResultadoComparacion(coincide = false, porcentajeSimilitud = 0)
         }
 
-        val endHog = FaceAnalyzerUtil.DIM_HOG
-        val endApp = endHog + FaceAnalyzerUtil.DIM_APPEARANCE
+        val dimEmb = FaceAnalyzerUtil.DIM_EMBEDDING
 
-        // 1. Estructura HoG con normalizacion de contraste (144 dims)
-        val rHog = correlacionPearson(v1, v2, 0, FaceAnalyzerUtil.DIM_HOG)
+        // 1. Similitud coseno y distancia euclidiana sobre la hiperesfera L2 de MobileFaceNet (192 dims)
+        val cosSim = similitudCosenoL2(v1, v2, 0, dimEmb)
+        val distEuclidiana = sqrt((2f * (1f - cosSim)).coerceAtLeast(0f))
 
-        // 2. Apariencia tonal relativa a la media facial (64 dims)
-        val rApp = correlacionPearson(v1, v2, endHog, FaceAnalyzerUtil.DIM_APPEARANCE)
+        // 2. Proporciones anatomicas craneofaciales (24 dims)
+        val sGeo = similitudCraneofacial(v1, v2, dimEmb, FaceAnalyzerUtil.DIM_GEOMETRY)
 
-        // 3. Proporciones anatomicas craneofaciales ML Kit (24 dims)
-        val sGeo = similitudCraneofacial(v1, v2, endApp, FaceAnalyzerUtil.DIM_GEOMETRY)
+        // Ponderacion centrada en el embedding neuronal de MobileFaceNet (82%) + Geometria (18%)
+        val scoreCombinado = (cosSim.coerceAtLeast(0f) * 0.82f + sGeo * 0.18f).coerceIn(0f, 1f)
 
-        // Ponderacion equilibrada: 40% HoG, 35% Geometria facial, 25% Apariencia tonal
-        val scoreCombinado = (rHog * 0.40f + sGeo * 0.35f + rApp * 0.25f).coerceIn(0f, 1f)
-
-        // Verificacion 1:1 estricta: EXIGE que todas las compuertas pasen simultaneamente
-        // para garantizar que solo el verdadero titular registrado sea admitido
-        val coincide = (rHog >= UMBRAL_HOG) &&
-                       (sGeo >= UMBRAL_GEOMETRIA) &&
-                       (rApp >= UMBRAL_APARIENCIA) &&
+        // Compuerta estricta 1:1: rechaza a cualquier tercera persona y admite al titular genuino
+        val coincide = (cosSim >= UMBRAL_COSENO_ESTRICTO) &&
+                       (distEuclidiana <= UMBRAL_DISTANCIA_MAX) &&
+                       (sGeo >= UMBRAL_GEOMETRIA_MIN) &&
                        (scoreCombinado >= UMBRAL_GLOBAL)
 
-        // Escala visual de porcentaje para el usuario
         val porcentaje = if (coincide) {
-            (84f + (scoreCombinado - UMBRAL_GLOBAL).coerceAtLeast(0f) / (1f - UMBRAL_GLOBAL) * 15f)
+            (85f + (cosSim - UMBRAL_COSENO_ESTRICTO).coerceAtLeast(0f) / (1f - UMBRAL_COSENO_ESTRICTO) * 14f)
                 .roundToInt()
                 .coerceIn(85, 99)
         } else {
-            (scoreCombinado * 74f).roundToInt().coerceIn(0, 72)
+            (cosSim.coerceAtLeast(0f) * 80f).roundToInt().coerceIn(0, 72)
         }
 
         return ResultadoComparacion(
             coincide = coincide,
             porcentajeSimilitud = porcentaje,
-            scoreHog = rHog,
-            scoreApariencia = rApp,
+            scoreEmbedding = cosSim,
+            distanciaEuclidiana = distEuclidiana,
             scoreGeometria = sGeo
         )
     }
 
-    /**
-     * Busca entre todos los usuarios registrados aquel cuyo descriptor facial supere las
-     * 3 compuertas biometricas y tenga la mayor similitud con el rostro capturado en vivo.
-     */
     fun identificarUsuario(
         usuarios: List<UsuarioBiometrico>,
         vectorActual: String
@@ -105,7 +97,7 @@ object FaceComparisonEngine {
 
         for (u in usuarios) {
             val res = compararRostros(u.vectorFacial, vectorActual)
-            val score = res.scoreHog * 0.45f + res.scoreApariencia * 0.35f + res.scoreGeometria * 0.20f
+            val score = res.scoreEmbedding * 0.82f + res.scoreGeometria * 0.18f
             if (res.coincide && score > mejorScore) {
                 mejorScore = score
                 mejorUsuario = u
@@ -122,35 +114,25 @@ object FaceComparisonEngine {
         )
     }
 
-    private fun correlacionPearson(
+    private fun similitudCosenoL2(
         a: FloatArray,
         b: FloatArray,
         start: Int,
         length: Int
     ): Float {
         val end = start + length
-        var meanA = 0f
-        var meanB = 0f
+        var dot = 0f
+        var normA = 0f
+        var normB = 0f
         for (i in start until end) {
-            meanA += a[i]
-            meanB += b[i]
+            val va = a[i]
+            val vb = b[i]
+            dot += va * vb
+            normA += va * va
+            normB += vb * vb
         }
-        meanA /= length.toFloat()
-        meanB /= length.toFloat()
-
-        var num = 0f
-        var denA = 0f
-        var denB = 0f
-        for (i in start until end) {
-            val da = a[i] - meanA
-            val db = b[i] - meanB
-            num += da * db
-            denA += da * da
-            denB += db * db
-        }
-
-        val denom = sqrt(denA * denB)
-        return if (denom > 1e-6f) (num / denom).coerceIn(-1f, 1f) else 0f
+        val denom = sqrt(normA * normB)
+        return if (denom > 1e-6f) (dot / denom).coerceIn(-1f, 1f) else 0f
     }
 
     private fun similitudCraneofacial(
@@ -164,11 +146,11 @@ object FaceComparisonEngine {
         for (i in start until end) {
             val va = a[i]
             val vb = b[i]
-            val scale = max(max(abs(va), abs(vb)), 0.20f)
+            val scale = max(max(abs(va), abs(vb)), 0.14f)
             sumRelDiff += abs(va - vb) / scale
         }
         val meanRelDiff = sumRelDiff / length.toFloat()
-        return (1f - meanRelDiff * 3.0f).coerceIn(0f, 1f)
+        return (1f - meanRelDiff * 3.2f).coerceIn(0f, 1f)
     }
 
     private fun parseVector(raw: String): FloatArray {

@@ -143,14 +143,16 @@ class BiometricRepository {
         val localFile = File(localDir, "${cleanDni}_rostro.jpg")
         runCatching { localFile.writeBytes(imageBytes) }
 
+        val timestamp = System.currentTimeMillis()
         val urlRemota = runCatching {
             Supa.client.storage.from(Supa.PERSONAS_PHOTOS_BUCKET)
                 .upload(remotePath, imageBytes) { upsert = true }
-            Supa.client.storage.from(Supa.PERSONAS_PHOTOS_BUCKET)
+            val basePublicUrl = Supa.client.storage.from(Supa.PERSONAS_PHOTOS_BUCKET)
                 .publicUrl(remotePath)
+            "$basePublicUrl?v=$timestamp"
         }.getOrNull()
 
-        return if (!urlRemota.isNullOrBlank()) urlRemota else localFile.absolutePath
+        return if (!urlRemota.isNullOrBlank()) urlRemota else "${localFile.absolutePath}?v=$timestamp"
     }
 
     fun obtenerUltimoDniRecordado(context: Context): String {
@@ -222,18 +224,19 @@ class BiometricRepository {
         if (ruta.isBlank()) return usuario
 
         val bitmap = runCatching {
+            val rutaSinQuery = ruta.substringBefore("?")
             val localCandidate = File(context.filesDir, "rostros/${usuario.dni}_rostro.jpg")
             when {
-                localCandidate.exists() -> BitmapFactory.decodeFile(localCandidate.absolutePath)
                 ruta.startsWith("http", ignoreCase = true) -> URL(ruta).openStream().use {
                     BitmapFactory.decodeStream(it)
                 }
-                File(ruta).exists() -> BitmapFactory.decodeFile(ruta)
+                File(rutaSinQuery).exists() -> BitmapFactory.decodeFile(rutaSinQuery)
+                localCandidate.exists() -> BitmapFactory.decodeFile(localCandidate.absolutePath)
                 else -> null
             }
         }.getOrNull() ?: return usuario
 
-        val nuevoVector = FaceAnalyzerUtil.extraerVectorDesdeBitmap(bitmap) ?: return usuario
+        val nuevoVector = FaceAnalyzerUtil.extraerVectorDesdeBitmap(context, bitmap) ?: return usuario
         val actualizado = usuario.copy(vectorFacial = nuevoVector)
         guardarEnRespaldoLocal(context, actualizado)
 

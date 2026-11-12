@@ -144,7 +144,7 @@ fun LiveFaceScannerModal(
 
             if (frameBmp != null) {
                 val resultadoFrame = withContext(Dispatchers.Default) {
-                    FaceAnalyzerUtil.analizarFrameEnVivo(frameBmp)
+                    FaceAnalyzerUtil.analizarFrameEnVivo(context, frameBmp)
                 }
 
                 when (resultadoFrame) {

@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -265,26 +266,10 @@ fun PostLoginScreen(
                 )
 
                 PostLoginActionCard(
-                    icon = Icons.Default.Fingerprint,
-                    iconTint = Color(0xFF16A34A),
-                    titulo = "Recapturar Huella Digital",
-                    subtitulo = "Escanear nuevo dedo en el sensor y actualizar cuenta",
-                    onClick = onCambiarHuella
-                )
-
-                PostLoginActionCard(
-                    icon = Icons.Default.Face,
-                    iconTint = Color(0xFF0D9488),
-                    titulo = "Recapturar Rostro Facial",
-                    subtitulo = "Escanear nuevo rostro con la cámara frontal",
-                    onClick = onRecapturarRostro
-                )
-
-                PostLoginActionCard(
                     icon = Icons.Default.VerifiedUser,
-                    iconTint = Color(0xFF6366F1),
+                    iconTint = Color(0xFF0D9488),
                     titulo = "Modificar Datos y Contraseña",
-                    subtitulo = "Editar nombre completo, contraseña de respaldo o biometría",
+                    subtitulo = "Actualizar nombre completo, contraseña o biometría",
                     onClick = onEditarBiometria
                 )
             }
@@ -389,14 +374,27 @@ private fun BiometricStatusBadge(
                 color = if (activo) Color(0xFF15803D).copy(alpha = 0.12f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    text = "✎ $textoAccion",
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (activo) Color(0xFF15803D) else MaterialTheme.colorScheme.primary,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
+                Row(
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = null,
+                        tint = if (activo) Color(0xFF15803D) else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        text = textoAccion,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (activo) Color(0xFF15803D) else MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
     }

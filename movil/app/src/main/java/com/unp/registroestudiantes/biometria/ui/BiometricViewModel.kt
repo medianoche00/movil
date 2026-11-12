@@ -137,7 +137,14 @@ class BiometricViewModel(
         _state.update {
             it.copy(
                 vistaActual = BiometricVista.REGISTRO,
-                regDni = if (dniActual.length == 8) dniActual else it.regDni,
+                regDni = if (dniActual.length == 8) dniActual else "",
+                regNombre = "",
+                regContrasena = "",
+                regHuellaToken = "",
+                regFotoFacialUri = null,
+                regFotoFacialBytes = null,
+                regVectorFacial = "",
+                esModoEdicion = false,
                 mostrarCampoContrasena = false,
                 dniInlineError = null,
                 errorMessage = null,
@@ -208,6 +215,15 @@ class BiometricViewModel(
                 mostrarCampoContrasena = false,
                 usuarioAutenticado = null,
                 metodoAutenticacion = "",
+                esModoEdicion = false,
+                buscandoUsuarioDni = false,
+                regDni = "",
+                regNombre = "",
+                regContrasena = "",
+                regHuellaToken = "",
+                regFotoFacialUri = null,
+                regFotoFacialBytes = null,
+                regVectorFacial = "",
                 errorMessage = null,
                 successMessage = "Sesión cerrada correctamente."
             )
@@ -533,10 +549,22 @@ class BiometricViewModel(
 
     fun cerrarEscanerFacial() {
         _state.update {
-            it.copy(
-                mostrarEscanerFacial = false,
-                procesandoRostro = false
-            )
+            if (it.vistaActual == BiometricVista.POST_LOGIN) {
+                it.copy(
+                    mostrarEscanerFacial = false,
+                    procesandoRostro = false,
+                    regDni = "",
+                    regNombre = "",
+                    regFotoFacialUri = null,
+                    regFotoFacialBytes = null,
+                    regVectorFacial = ""
+                )
+            } else {
+                it.copy(
+                    mostrarEscanerFacial = false,
+                    procesandoRostro = false
+                )
+            }
         }
     }
 
@@ -636,6 +664,11 @@ class BiometricViewModel(
                                 mostrarEscanerFacial = false,
                                 procesandoRostro = false,
                                 usuarioAutenticado = actualizado,
+                                regDni = "",
+                                regNombre = "",
+                                regFotoFacialUri = null,
+                                regFotoFacialBytes = null,
+                                regVectorFacial = "",
                                 successMessage = "Rostro facial recapturado y actualizado correctamente."
                             )
                         }
@@ -644,6 +677,11 @@ class BiometricViewModel(
                             it.copy(
                                 mostrarEscanerFacial = false,
                                 procesandoRostro = false,
+                                regDni = "",
+                                regNombre = "",
+                                regFotoFacialUri = null,
+                                regFotoFacialBytes = null,
+                                regVectorFacial = "",
                                 errorMessage = "No se pudo actualizar el rostro: ${e.message}"
                             )
                         }
