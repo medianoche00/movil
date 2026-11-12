@@ -77,13 +77,21 @@ fun FingerprintAuthModal(
         }
     }
 
+    val esRecaptura = subtituloUsuario.contains("actualizar", ignoreCase = true) ||
+                      subtituloUsuario.contains("recapturar", ignoreCase = true)
+    val tituloModal = when {
+        esRecaptura -> "Recapturar Huella Dactilar"
+        esModoRegistro -> "Vincular Huella Dactilar"
+        else -> "Verificación de Huella"
+    }
+
     // Dispara el BiometricPrompt del dispositivo cuando estamos en estado ESPERANDO
     LaunchedEffect(visible, intentoTrigger, errorInicial) {
         if (visible && errorInicial == null && estado == EstadoHuellaModal.ESPERANDO) {
             delay(180)
             BiometricPromptHelper.autenticarHuella(
                 context = context,
-                titulo = if (esModoRegistro) "Vincular Huella Dactilar" else "Verificación de Huella",
+                titulo = tituloModal,
                 subtitulo = subtituloUsuario,
                 dni = dniObjetivo,
                 onExito = { token ->
@@ -145,7 +153,7 @@ fun FingerprintAuthModal(
                     Spacer(Modifier.height(16.dp))
 
                     Text(
-                        text = if (esModoRegistro) "Vincular Huella Dactilar" else "Verificación de Huella",
+                        text = tituloModal,
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 19.sp,
                         color = MaterialTheme.colorScheme.onSurface,

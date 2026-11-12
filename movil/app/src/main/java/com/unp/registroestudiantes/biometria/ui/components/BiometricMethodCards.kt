@@ -91,9 +91,7 @@ fun EnrollmentFingerprintCard(
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
             ) {
                 Text(
-                    text = if (vinculada) {
-                        if (esModoEdicion) "Cambiar" else "Vinculada"
-                    } else "Vincular",
+                    text = if (vinculada) "Recapturar" else "Capturar",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold
                 )

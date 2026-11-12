@@ -594,9 +594,64 @@ class BiometricViewModel(
         }
     }
 
+    /** Inicia la recaptura del rostro facial directamente desde la sesion iniciada */
+    fun iniciarRecapturaRostroPostLogin(onListoParaCamara: () -> Unit) {
+        val user = _state.value.usuarioAutenticado ?: return
+        _state.update {
+            it.copy(
+                regDni = user.dni,
+                regNombre = user.nombre,
+                facialSubtituloTitular = "Recapturar rostro: ${user.nombre} (${user.dni})"
+            )
+        }
+        onListoParaCamara()
+    }
+
     /** Se ejecuta tras mostrarse el recuadro verde de confirmacion en el escaner facial. */
-    fun finalizarEscaneoFacialExitoso() {
+    fun finalizarEscaneoFacialExitoso(context: Context? = null) {
         val s = _state.value
+        if (s.vistaActual == BiometricVista.POST_LOGIN && s.usuarioAutenticado != null) {
+            val user = s.usuarioAutenticado
+            val bytes = s.regFotoFacialBytes
+            val vec = s.regVectorFacial
+            if (context != null && bytes != null && bytes.isNotEmpty()) {
+                viewModelScope.launch {
+                    try {
+                        val nuevaUrl = withContext(Dispatchers.IO) {
+                            repository.uploadFacePhoto(context, user.dni, bytes)
+                        }
+                        val payload = UsuarioBiometricoWrite(
+                            dni = user.dni,
+                            nombre = user.nombre,
+                            contrasena = user.contrasena,
+                            huella = user.huella,
+                            imagenFacial = nuevaUrl,
+                            vectorFacial = vec
+                        )
+                        val actualizado = withContext(Dispatchers.IO) {
+                            repository.update(context, payload)
+                        }
+                        _state.update {
+                            it.copy(
+                                mostrarEscanerFacial = false,
+                                procesandoRostro = false,
+                                usuarioAutenticado = actualizado,
+                                successMessage = "Rostro facial recapturado y actualizado correctamente."
+                            )
+                        }
+                    } catch (e: Exception) {
+                        _state.update {
+                            it.copy(
+                                mostrarEscanerFacial = false,
+                                procesandoRostro = false,
+                                errorMessage = "No se pudo actualizar el rostro: ${e.message}"
+                            )
+                        }
+                    }
+                }
+                return
+            }
+        }
         if (s.escanerEnModoRegistro) {
             _state.update {
                 it.copy(

@@ -87,7 +87,7 @@ fun BiometricAuthScreen(
         onCompletarEscaneo = { vectorPromedio, frameBitmap ->
             viewModel.evaluarEscaneoFacialEnVivo(context, vectorPromedio, frameBitmap)
         },
-        onFinalizarConExito = viewModel::finalizarEscaneoFacialExitoso,
+        onFinalizarConExito = { viewModel.finalizarEscaneoFacialExitoso(context) },
         onCancelar = viewModel::cerrarEscanerFacial
     )
 
@@ -151,7 +151,12 @@ fun BiometricAuthScreen(
                     onIrAPanelAcademico = onIrAPanelAcademico,
                     onCerrarSesion = viewModel::cerrarSesion,
                     onEditarBiometria = { viewModel.irAEditarBiometria(context) },
-                    onCambiarHuella = viewModel::iniciarCambioHuellaPostLogin
+                    onCambiarHuella = viewModel::iniciarCambioHuellaPostLogin,
+                    onRecapturarRostro = {
+                        viewModel.iniciarRecapturaRostroPostLogin {
+                            abrirCamaraConPermiso(esModoRegistro = true)
+                        }
+                    }
                 )
             }
         }

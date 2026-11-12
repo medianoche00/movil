@@ -45,6 +45,7 @@ fun PostLoginScreen(
     onCerrarSesion: () -> Unit,
     onEditarBiometria: () -> Unit = {},
     onCambiarHuella: () -> Unit = {},
+    onRecapturarRostro: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val nombreMostrar = usuario?.nombre ?: "Usuario Autenticado"
@@ -214,7 +215,7 @@ fun PostLoginScreen(
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
                     )
 
-                    // Indicadores de estado de las credenciales biometricas del usuario
+                    // Indicadores y botones directos de recaptura biometrica
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -224,6 +225,7 @@ fun PostLoginScreen(
                             titulo = "Huella Dactilar",
                             estado = if (huellaActiva) "Vinculada" else "Pendiente",
                             activo = huellaActiva,
+                            textoAccion = if (huellaActiva) "Recapturar Huella" else "Vincular Huella",
                             onClick = onCambiarHuella,
                             modifier = Modifier.weight(1f)
                         )
@@ -232,7 +234,8 @@ fun PostLoginScreen(
                             titulo = "Rostro Facial",
                             estado = if (rostroActivo) "Registrado" else "Pendiente",
                             activo = rostroActivo,
-                            onClick = onEditarBiometria,
+                            textoAccion = if (rostroActivo) "Recapturar Rostro" else "Registrar Rostro",
+                            onClick = onRecapturarRostro,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -264,16 +267,24 @@ fun PostLoginScreen(
                 PostLoginActionCard(
                     icon = Icons.Default.Fingerprint,
                     iconTint = Color(0xFF16A34A),
-                    titulo = "Registrar / Cambiar Huella Digital",
-                    subtitulo = "Capturar un nuevo dedo en el sensor y actualizar cuenta",
+                    titulo = "Recapturar Huella Digital",
+                    subtitulo = "Escanear nuevo dedo en el sensor y actualizar cuenta",
                     onClick = onCambiarHuella
                 )
 
                 PostLoginActionCard(
                     icon = Icons.Default.Face,
                     iconTint = Color(0xFF0D9488),
-                    titulo = "Modificar Datos Biométricos Completos",
-                    subtitulo = "Actualizar rostro facial, huella dactilar o contraseña",
+                    titulo = "Recapturar Rostro Facial",
+                    subtitulo = "Escanear nuevo rostro con la cámara frontal",
+                    onClick = onRecapturarRostro
+                )
+
+                PostLoginActionCard(
+                    icon = Icons.Default.VerifiedUser,
+                    iconTint = Color(0xFF6366F1),
+                    titulo = "Modificar Datos y Contraseña",
+                    subtitulo = "Editar nombre completo, contraseña de respaldo o biometría",
                     onClick = onEditarBiometria
                 )
             }
@@ -313,6 +324,7 @@ private fun BiometricStatusBadge(
     titulo: String,
     estado: String,
     activo: Boolean,
+    textoAccion: String = "Recapturar",
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null
 ) {
@@ -321,7 +333,7 @@ private fun BiometricStatusBadge(
     Surface(
         onClick = { onClick?.invoke() },
         enabled = onClick != null,
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
         border = BorderStroke(
             width = 1.dp,
@@ -330,39 +342,60 @@ private fun BiometricStatusBadge(
         ),
         modifier = modifier
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(colorEstado.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = colorEstado,
-                    modifier = Modifier.size(18.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(colorEstado.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = colorEstado,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = titulo,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = estado,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colorEstado,
+                        maxLines = 1
+                    )
+                }
             }
-            Column {
+
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (activo) Color(0xFF15803D).copy(alpha = 0.12f) else MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text(
-                    text = titulo,
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = estado,
-                    fontSize = 12.5.sp,
+                    text = "✎ $textoAccion",
+                    fontSize = 11.5.sp,
                     fontWeight = FontWeight.Bold,
-                    color = colorEstado,
-                    maxLines = 1
+                    color = if (activo) Color(0xFF15803D) else MaterialTheme.colorScheme.primary,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.padding(vertical = 4.dp)
                 )
             }
         }

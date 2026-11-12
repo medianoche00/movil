@@ -89,14 +89,15 @@ object BiometricPromptHelper {
     }
 
     /**
-     * Genera una firma criptografica SHA-256 unica asociada al DNI tras validar el sensor fisico.
+     * Genera una firma criptografica SHA-256 unica asociada al DNI y marca de tiempo tras validar el sensor fisico.
      */
     fun generarTokenCriptografico(dni: String): String {
         val cleanDni = dni.trim().ifEmpty { "00000000" }
-        val payload = "UNP_BIOMETRIC_FINGERPRINT_SALT_$cleanDni"
+        val timestamp = System.currentTimeMillis()
+        val payload = "UNP_BIOMETRIC_FP_${cleanDni}_${timestamp}"
         val digest = MessageDigest.getInstance("SHA-256").digest(payload.toByteArray())
         val hex = digest.take(12).joinToString("") { "%02X".format(it) }
-        return "FP_SHA256_$hex"
+        return "FP_${cleanDni}_$hex"
     }
 
     private fun Context.findFragmentActivity(): FragmentActivity? {
