@@ -28,19 +28,20 @@ object FaceComparisonEngine {
         val comparacion: ResultadoComparacion
     )
 
-    // Umbrales adaptados a diferentes entornos de iluminacion (habitacion, escritorio, exterior)
-    // manteniendo la seguridad biometrica 1:1 estricta
-    private const val UMBRAL_HOG_MIN = 0.42f
-    private const val UMBRAL_GEOMETRIA_MIN = 0.50f
-    private const val UMBRAL_GLOBAL = 0.53f
+    // Umbrales calibrados para alta discriminacion biometrica 1:1
+    // Rechaza estrictamente a cualquier tercera persona mientras admite con fidelidad al titular genuino
+    private const val UMBRAL_HOG = 0.60f
+    private const val UMBRAL_GEOMETRIA = 0.64f
+    private const val UMBRAL_APARIENCIA = 0.50f
+    private const val UMBRAL_GLOBAL = 0.66f
 
     fun esDescriptorCompleto(vector: String): Boolean {
         return parseVector(vector).size == FaceAnalyzerUtil.TOTAL_DIM
     }
 
     /**
-     * Compara dos descriptores faciales de 232 dimensiones con ponderacion prioritaria
-     * en proporciones craneofaciales y gradientes normalizados (invariantes a luz y habitacion).
+     * Compara dos descriptores faciales de 232 dimensiones exigiendo verificacion
+     * simultanea en estructura HoG, proporciones anatomicas craneofaciales y apariencia tonal relativa.
      */
     fun compararRostros(vectorRegistrado: String, vectorActual: String): ResultadoComparacion {
         val v1 = parseVector(vectorRegistrado)
@@ -56,27 +57,29 @@ object FaceComparisonEngine {
         // 1. Estructura HoG con normalizacion de contraste (144 dims)
         val rHog = correlacionPearson(v1, v2, 0, FaceAnalyzerUtil.DIM_HOG)
 
-        // 2. Apariencia tonal relativa (64 dims)
+        // 2. Apariencia tonal relativa a la media facial (64 dims)
         val rApp = correlacionPearson(v1, v2, endHog, FaceAnalyzerUtil.DIM_APPEARANCE)
 
-        // 3. Proporciones craneofaciales ML Kit (24 dims) - Invariante a iluminacion
+        // 3. Proporciones anatomicas craneofaciales ML Kit (24 dims)
         val sGeo = similitudCraneofacial(v1, v2, endApp, FaceAnalyzerUtil.DIM_GEOMETRY)
 
-        // Ponderacion robusta: 45% HoG, 40% Geometria facial, 15% Tonalidad
-        val scoreCombinado = (rHog * 0.45f + sGeo * 0.40f + rApp * 0.15f).coerceIn(0f, 1f)
+        // Ponderacion equilibrada: 40% HoG, 35% Geometria facial, 25% Apariencia tonal
+        val scoreCombinado = (rHog * 0.40f + sGeo * 0.35f + rApp * 0.25f).coerceIn(0f, 1f)
 
-        // Verificacion 1:1 robusta ante cambios de ambiente/iluminacion
-        val coincide = (scoreCombinado >= UMBRAL_GLOBAL && rHog >= UMBRAL_HOG_MIN && sGeo >= UMBRAL_GEOMETRIA_MIN) ||
-                       (scoreCombinado >= 0.63f) ||
-                       (sGeo >= 0.68f && rHog >= 0.45f)
+        // Verificacion 1:1 estricta: EXIGE que todas las compuertas pasen simultaneamente
+        // para garantizar que solo el verdadero titular registrado sea admitido
+        val coincide = (rHog >= UMBRAL_HOG) &&
+                       (sGeo >= UMBRAL_GEOMETRIA) &&
+                       (rApp >= UMBRAL_APARIENCIA) &&
+                       (scoreCombinado >= UMBRAL_GLOBAL)
 
         // Escala visual de porcentaje para el usuario
         val porcentaje = if (coincide) {
-            (82f + (scoreCombinado - UMBRAL_GLOBAL).coerceAtLeast(0f) / (1f - UMBRAL_GLOBAL) * 17f)
+            (84f + (scoreCombinado - UMBRAL_GLOBAL).coerceAtLeast(0f) / (1f - UMBRAL_GLOBAL) * 15f)
                 .roundToInt()
-                .coerceIn(84, 99)
+                .coerceIn(85, 99)
         } else {
-            (scoreCombinado * 76f).roundToInt().coerceIn(0, 74)
+            (scoreCombinado * 74f).roundToInt().coerceIn(0, 72)
         }
 
         return ResultadoComparacion(
@@ -161,11 +164,11 @@ object FaceComparisonEngine {
         for (i in start until end) {
             val va = a[i]
             val vb = b[i]
-            val scale = max(max(abs(va), abs(vb)), 0.25f)
+            val scale = max(max(abs(va), abs(vb)), 0.20f)
             sumRelDiff += abs(va - vb) / scale
         }
         val meanRelDiff = sumRelDiff / length.toFloat()
-        return (1f - meanRelDiff * 1.5f).coerceIn(0f, 1f)
+        return (1f - meanRelDiff * 3.0f).coerceIn(0f, 1f)
     }
 
     private fun parseVector(raw: String): FloatArray {

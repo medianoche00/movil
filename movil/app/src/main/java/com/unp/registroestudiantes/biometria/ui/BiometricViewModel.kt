@@ -388,6 +388,22 @@ class BiometricViewModel(
         }
     }
 
+    /** Abre el modal para modificar o registrar una nueva huella digital desde la sesion iniciada */
+    fun iniciarCambioHuellaPostLogin() {
+        val user = _state.value.usuarioAutenticado ?: return
+        _state.update {
+            it.copy(
+                mostrarModalHuella = true,
+                huellaEnModoRegistro = true,
+                huellaDniObjetivo = user.dni,
+                huellaSubtitulo = "Coloca tu nuevo dedo en el sensor para actualizar tu huella (${user.nombre})",
+                huellaUsuarioObjetivo = user,
+                huellaErrorInicial = null,
+                errorMessage = null
+            )
+        }
+    }
+
     fun cerrarModalHuella() {
         _state.update {
             it.copy(
@@ -401,7 +417,38 @@ class BiometricViewModel(
         val s = _state.value
         viewModelScope.launch {
             delay(720)
-            if (s.huellaEnModoRegistro) {
+            if (s.vistaActual == BiometricVista.POST_LOGIN && s.usuarioAutenticado != null) {
+                // Actualiza la huella directamente para el usuario en sesion activa
+                val user = s.usuarioAutenticado
+                val payload = UsuarioBiometricoWrite(
+                    dni = user.dni,
+                    nombre = user.nombre,
+                    contrasena = user.contrasena,
+                    huella = token,
+                    imagenFacial = user.imagenFacial,
+                    vectorFacial = user.vectorFacial
+                )
+                try {
+                    val actualizado = withContext(Dispatchers.IO) {
+                        repository.update(context, payload)
+                    }
+                    _state.update {
+                        it.copy(
+                            mostrarModalHuella = false,
+                            usuarioAutenticado = actualizado,
+                            errorMessage = null,
+                            successMessage = "Nueva huella dactilar registrada y actualizada correctamente."
+                        )
+                    }
+                } catch (e: Exception) {
+                    _state.update {
+                        it.copy(
+                            mostrarModalHuella = false,
+                            errorMessage = "No se pudo actualizar la huella dactilar: ${e.message}"
+                        )
+                    }
+                }
+            } else if (s.huellaEnModoRegistro) {
                 _state.update {
                     it.copy(
                         mostrarModalHuella = false,
@@ -541,7 +588,7 @@ class BiometricViewModel(
                 )
             } else {
                 ResultadoEscaneoEnVivo.Error(
-                    "El rostro no coincide con el titular del DNI ${titular.dni}."
+                    "El rostro presentado no coincide con el titular registrado (${comparacion.porcentajeSimilitud}% similitud). Acceso denegado."
                 )
             }
         }

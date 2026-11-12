@@ -150,7 +150,8 @@ fun BiometricAuthScreen(
                     metodoAutenticacion = state.metodoAutenticacion,
                     onIrAPanelAcademico = onIrAPanelAcademico,
                     onCerrarSesion = viewModel::cerrarSesion,
-                    onEditarBiometria = { viewModel.irAEditarBiometria(context) }
+                    onEditarBiometria = { viewModel.irAEditarBiometria(context) },
+                    onCambiarHuella = viewModel::iniciarCambioHuellaPostLogin
                 )
             }
         }

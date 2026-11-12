@@ -44,6 +44,7 @@ fun PostLoginScreen(
     onIrAPanelAcademico: () -> Unit,
     onCerrarSesion: () -> Unit,
     onEditarBiometria: () -> Unit = {},
+    onCambiarHuella: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val nombreMostrar = usuario?.nombre ?: "Usuario Autenticado"
@@ -223,6 +224,7 @@ fun PostLoginScreen(
                             titulo = "Huella Dactilar",
                             estado = if (huellaActiva) "Vinculada" else "Pendiente",
                             activo = huellaActiva,
+                            onClick = onCambiarHuella,
                             modifier = Modifier.weight(1f)
                         )
                         BiometricStatusBadge(
@@ -230,6 +232,7 @@ fun PostLoginScreen(
                             titulo = "Rostro Facial",
                             estado = if (rostroActivo) "Registrado" else "Pendiente",
                             activo = rostroActivo,
+                            onClick = onEditarBiometria,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -260,8 +263,16 @@ fun PostLoginScreen(
 
                 PostLoginActionCard(
                     icon = Icons.Default.Fingerprint,
+                    iconTint = Color(0xFF16A34A),
+                    titulo = "Registrar / Cambiar Huella Digital",
+                    subtitulo = "Capturar un nuevo dedo en el sensor y actualizar cuenta",
+                    onClick = onCambiarHuella
+                )
+
+                PostLoginActionCard(
+                    icon = Icons.Default.Face,
                     iconTint = Color(0xFF0D9488),
-                    titulo = "Modificar Datos Biométricos",
+                    titulo = "Modificar Datos Biométricos Completos",
                     subtitulo = "Actualizar rostro facial, huella dactilar o contraseña",
                     onClick = onEditarBiometria
                 )
@@ -302,11 +313,14 @@ private fun BiometricStatusBadge(
     titulo: String,
     estado: String,
     activo: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
 ) {
     val colorEstado = if (activo) Color(0xFF15803D) else MaterialTheme.colorScheme.onSurfaceVariant
 
     Surface(
+        onClick = { onClick?.invoke() },
+        enabled = onClick != null,
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
         border = BorderStroke(
