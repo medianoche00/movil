@@ -1,31 +1,44 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Birrete universitario (graduation cap) en blanco sobre transparente -->
+<!-- Emblema original de EmprendePiura: bolsa marketplace + sol piurano + chispa de crecimiento -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Parte superior del birrete: rombo/diamante -->
+    <!-- Asa curva de la bolsa marketplace -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,18 L92,38 L54,58 L16,38 Z" />
-
-    <!-- Cuerpo del birrete: trapezoide redondeado hacia abajo -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M28,46 L28,67 C28,79 40,86 54,86 C68,86 80,79 80,67 L80,46 L54,58 Z" />
-
-    <!-- Borla: línea vertical desde el extremo derecho del diamante -->
-    <path
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="5"
-        android:strokeLineCap="round"
         android:fillColor="@android:color/transparent"
-        android:pathData="M92,38 L92,67" />
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5.4"
+        android:strokeLineCap="round"
+        android:pathData="M41,42 L41,35 C41,27.8 46.8,22 54,22 C61.2,22 67,27.8 67,35 L67,42" />
 
-    <!-- Borla: bola al final -->
+    <!-- Cuerpo de la bolsa comercial -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M92,67 m-7,0 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0" />
+        android:pathData="M31.5,40.5 L76.5,40.5 C79.1,40.5 81.2,42.4 81.5,45.0 L84.2,75.2 C84.7,80.1 80.9,84 76.0,84 L32.0,84 C27.1,84 23.3,80.1 23.8,75.2 L26.5,45.0 C26.8,42.4 28.9,40.5 31.5,40.5 Z" />
+
+    <!-- Sol cálido de Piura en la esquina superior izquierda de la bolsa -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M43.5,53.5 m-6.5,0 a6.5,6.5 0 1,0 13,0 a6.5,6.5 0 1,0 -13,0" />
+
+    <!-- Trazo ascendente de crecimiento y emprendimiento -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#1D4ED8"
+        android:strokeWidth="5.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M36,73 L48,63 L55,68 L70.5,52" />
+
+    <!-- Punta de flecha hacia arriba -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#1D4ED8"
+        android:strokeWidth="5.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M62,51.8 L70.8,51.8 L70.8,60.6" />
 </vector>

@@ -13,11 +13,11 @@ val localProps = Properties().apply {
 }
 
 android {
-    namespace = "com.unp.registroestudiantes"
+    namespace = "com.unp.emprendepiura"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.unp.registroestudiantes"
+        applicationId = "com.unp.emprendepiura"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
@@ -64,11 +64,12 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
 
-    // Supabase
+    // Supabase (Postgrest, Storage y Realtime para chat/ordenes en vivo)
     implementation(platform("io.github.jan-tennert.supabase:bom:3.2.2"))
     implementation("io.github.jan-tennert.supabase:postgrest-kt")
     implementation("io.github.jan-tennert.supabase:storage-kt")
-    implementation("io.ktor:ktor-client-android:3.1.3")
+    implementation("io.github.jan-tennert.supabase:realtime-kt")
+    implementation("io.ktor:ktor-client-okhttp:3.1.3")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
 
     // Navegación y ViewModel
@@ -81,11 +82,7 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-compose:3.1.0")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.1.0")
 
-    // CV: OCR + PDFBox
-    implementation("com.google.mlkit:text-recognition:16.0.1")
-    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
-
-    // Biometría: Huella Dactilar, Detección Facial, MobileFaceNet (LiteRT 16KB) y Cámara en Vivo (Trabajo N°04)
+    // Biometría: Huella Dactilar, Detección Facial, MobileFaceNet (LiteRT 16KB) y Cámara en Vivo
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("com.google.mlkit:face-detection:16.1.7")
     implementation("com.google.ai.edge.litert:litert:1.4.0")
