@@ -48,6 +48,19 @@ class AuthBiometricRepository {
         return leerTodosDeRespaldoLocal(context).map { asegurarDescriptorActualizado(context, it) }
     }
 
+    suspend fun existeDni(context: Context, dni: String): Boolean {
+        val cleanDni = dni.trim()
+        if (cleanDni.length != 8) return false
+        val remoto = runCatching {
+            SupaClient.client.from(TABLE_USUARIOS)
+                .select { filter { eq("dni", cleanDni) } }
+                .decodeList<UsuarioRowDto>()
+                .isNotEmpty()
+        }
+        if (remoto.isSuccess) return remoto.getOrThrow()
+        return leerDeRespaldoLocal(context, cleanDni) != null
+    }
+
     suspend fun getByDni(context: Context, dni: String): Usuario? {
         val cleanDni = dni.trim()
         val remoto = runCatching {
@@ -105,7 +118,6 @@ class AuthBiometricRepository {
         }
 
         guardarEnRespaldoLocal(context, guardado)
-        recordarUltimoDni(context, guardado.dni)
         return guardado
     }
 
@@ -129,14 +141,9 @@ class AuthBiometricRepository {
         return if (!urlRemota.isNullOrBlank()) urlRemota else "${localFile.absolutePath}?v=$timestamp"
     }
 
-    fun obtenerUltimoDniRecordado(context: Context): String {
+    fun limpiarUltimoDniRecordado(context: Context) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        return prefs.getString(KEY_LAST_DNI, "").orEmpty()
-    }
-
-    fun recordarUltimoDni(context: Context, dni: String) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putString(KEY_LAST_DNI, dni.trim()).apply()
+        prefs.edit().remove(KEY_LAST_DNI).apply()
     }
 
     private fun eliminarDeRespaldoLocal(context: Context, dni: String) {

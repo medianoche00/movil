@@ -2,7 +2,6 @@ package com.unp.emprendepiura.features.marketplace
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -25,6 +24,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.unp.emprendepiura.core.theme.appleBouncySpring
 import com.unp.emprendepiura.core.theme.appleSubRouteTransition
 import com.unp.emprendepiura.core.theme.appleTabTransition
+import com.unp.emprendepiura.domain.model.Conversacion
+import com.unp.emprendepiura.domain.model.EstadoEmprendimiento
+import com.unp.emprendepiura.domain.model.EstadoOrden
 import com.unp.emprendepiura.domain.model.Producto
 import com.unp.emprendepiura.domain.model.Usuario
 import com.unp.emprendepiura.features.admin.AdminPanelScreen
@@ -36,9 +38,12 @@ import com.unp.emprendepiura.features.catalog.ProductoDetalleScreen
 import com.unp.emprendepiura.features.chat.ChatRoomScreen
 import com.unp.emprendepiura.features.chat.ChatViewModel
 import com.unp.emprendepiura.features.chat.ChatsListScreen
+import com.unp.emprendepiura.features.chat.PerfilChatObjetivo
+import com.unp.emprendepiura.features.chat.PerfilContactoChatScreen
 import com.unp.emprendepiura.features.checkout.CartScreen
 import com.unp.emprendepiura.features.checkout.MisPedidosScreen
 import com.unp.emprendepiura.features.checkout.OrdersViewModel
+import com.unp.emprendepiura.features.checkout.PedidosSubTab
 import com.unp.emprendepiura.features.store.MiTiendaScreen
 import com.unp.emprendepiura.features.store.SolicitarTiendaScreen
 import com.unp.emprendepiura.features.store.StoreViewModel
@@ -55,6 +60,13 @@ private sealed class MarketSubRoute {
     data object Tabs : MarketSubRoute()
     data class DetalleProducto(val producto: Producto) : MarketSubRoute()
     data object SalaChat : MarketSubRoute()
+    data class PerfilContactoChat(
+        val conversacion: Conversacion?,
+        val tiendaId: String?,
+        val compradorId: String?,
+        val nombreFallback: String,
+        val volverA: MarketSubRoute
+    ) : MarketSubRoute()
     data object SolicitarTienda : MarketSubRoute()
     data object MiTienda : MarketSubRoute()
     data object PanelAdmin : MarketSubRoute()
@@ -88,30 +100,58 @@ fun MarketplaceShellScreen(
 
     var currentTab by remember { mutableStateOf(MarketTab.EXPLORAR) }
     var subRoute by remember { mutableStateOf<MarketSubRoute>(MarketSubRoute.Tabs) }
+    var pedidosSubTab by remember { mutableStateOf(PedidosSubTab.MIS_COMPRAS) }
 
-    // Cargar datos dependientes del usuario autenticado
+    val tiendaAprobada = remember(usuario?.id, storeState.miTienda) {
+        if (usuario == null) null
+        else storeState.miTienda?.takeIf { it.estado == EstadoEmprendimiento.APROBADO }
+    }
+
     LaunchedEffect(usuario?.id) {
         if (usuario != null && usuario.id.isNotBlank()) {
             storeVm.cargarMiTienda(usuario.id)
             ordersVm.cargarMisOrdenes(usuario.id)
+        } else {
+            ordersVm.limpiarEstadoSesion()
+            pedidosSubTab = PedidosSubTab.MIS_COMPRAS
         }
     }
 
     LaunchedEffect(usuario?.id, storeState.miTienda?.id) {
         if (usuario != null && usuario.id.isNotBlank()) {
-            chatVm.cargarConversaciones(usuario.id, storeState.miTienda?.id)
-            storeState.miTienda?.id?.let { ordersVm.cargarOrdenesRecibidas(it) }
+            val tiendaId = storeState.miTienda?.id
+            chatVm.iniciarObservacionBandeja(usuario.id, tiendaId)
+            if (tiendaId != null && storeState.miTienda?.estado == EstadoEmprendimiento.APROBADO) {
+                ordersVm.cargarOrdenesRecibidas(tiendaId)
+                pedidosSubTab = PedidosSubTab.POR_ENTREGAR
+            }
+        } else {
+            chatVm.detenerObservacionYSesion()
+        }
+    }
+
+    LaunchedEffect(chatState.salaEliminadaPorContraparte) {
+        if (chatState.salaEliminadaPorContraparte &&
+            (subRoute == MarketSubRoute.SalaChat || subRoute is MarketSubRoute.PerfilContactoChat)
+        ) {
+            subRoute = MarketSubRoute.Tabs
+            chatVm.consumirEventoSalaEliminada()
         }
     }
 
     BackHandler(enabled = subRoute != MarketSubRoute.Tabs) {
-        if (subRoute == MarketSubRoute.SalaChat) chatVm.cerrarSala()
-        subRoute = MarketSubRoute.Tabs
+        when (val current = subRoute) {
+            is MarketSubRoute.PerfilContactoChat -> subRoute = current.volverA
+            MarketSubRoute.SalaChat -> {
+                chatVm.cerrarSala(usuario?.id)
+                subRoute = MarketSubRoute.Tabs
+            }
+            else -> subRoute = MarketSubRoute.Tabs
+        }
     }
 
-    // Banner unificado de feedback para todas las pantallas del Marketplace
     val bannerError = ordersState.error ?: chatState.error ?: storeState.error ?: adminState.error ?: catalogState.error
-    val bannerExito = ordersState.exito ?: storeState.exito ?: adminState.exito ?: catalogState.infoBanner
+    val bannerExito = ordersState.exito ?: chatState.exito ?: storeState.exito ?: adminState.exito ?: catalogState.infoBanner
 
     Box(modifier = Modifier.fillMaxSize()) {
         AnimatedContent(
@@ -138,22 +178,58 @@ fun MarketplaceShellScreen(
                                         selected = currentTab == tab,
                                         onClick = { currentTab = tab },
                                         icon = {
-                                            if (tab == MarketTab.CARRITO) {
-                                                BadgedBox(
-                                                    badge = {
-                                                        androidx.compose.animation.AnimatedVisibility(
-                                                            visible = catalogState.totalUnidadesCarrito > 0,
-                                                            enter = scaleIn(appleBouncySpring()) + fadeIn(),
-                                                            exit = scaleOut() + fadeOut()
-                                                        ) {
-                                                            Badge { Text("${catalogState.totalUnidadesCarrito}") }
+                                            when (tab) {
+                                                MarketTab.CARRITO -> {
+                                                    BadgedBox(
+                                                        badge = {
+                                                            androidx.compose.animation.AnimatedVisibility(
+                                                                visible = catalogState.totalUnidadesCarrito > 0,
+                                                                enter = scaleIn(appleBouncySpring()) + fadeIn(),
+                                                                exit = scaleOut() + fadeOut()
+                                                            ) {
+                                                                Badge { Text("${catalogState.totalUnidadesCarrito}") }
+                                                            }
                                                         }
+                                                    ) {
+                                                        Icon(icon, contentDescription = tab.label)
                                                     }
-                                                ) {
-                                                    Icon(icon, contentDescription = tab.label)
                                                 }
-                                            } else {
-                                                Icon(icon, contentDescription = tab.label)
+                                                MarketTab.CHATS -> {
+                                                    BadgedBox(
+                                                        badge = {
+                                                            androidx.compose.animation.AnimatedVisibility(
+                                                                visible = usuario != null && chatState.totalNoLeidos > 0,
+                                                                enter = scaleIn(appleBouncySpring()) + fadeIn(),
+                                                                exit = scaleOut() + fadeOut()
+                                                            ) {
+                                                                Badge {
+                                                                    Text(
+                                                                        if (chatState.totalNoLeidos > 99) "99+"
+                                                                        else "${chatState.totalNoLeidos}"
+                                                                    )
+                                                                }
+                                                            }
+                                                        }
+                                                    ) {
+                                                        Icon(icon, contentDescription = tab.label)
+                                                    }
+                                                }
+                                                MarketTab.PEDIDOS -> {
+                                                    BadgedBox(
+                                                        badge = {
+                                                            androidx.compose.animation.AnimatedVisibility(
+                                                                visible = tiendaAprobada != null && ordersState.entregasPendientesCount > 0,
+                                                                enter = scaleIn(appleBouncySpring()) + fadeIn(),
+                                                                exit = scaleOut() + fadeOut()
+                                                            ) {
+                                                                Badge { Text("${ordersState.entregasPendientesCount}") }
+                                                            }
+                                                        }
+                                                    ) {
+                                                        Icon(icon, contentDescription = tab.label)
+                                                    }
+                                                }
+                                                else -> Icon(icon, contentDescription = tab.label)
                                             }
                                         },
                                         label = { Text(tab.label) }
@@ -165,7 +241,9 @@ fun MarketplaceShellScreen(
                         AnimatedContent(
                             targetState = currentTab,
                             transitionSpec = { appleTabTransition() },
-                            modifier = Modifier.padding(innerPadding).fillMaxSize(),
+                            modifier = Modifier
+                                .padding(innerPadding)
+                                .fillMaxSize(),
                             label = "marketplaceTabs"
                         ) { tab ->
                             when (tab) {
@@ -187,17 +265,28 @@ fun MarketplaceShellScreen(
                                     } else {
                                         ChatsListScreen(
                                             state = chatState,
-                                            tiendas = catalogState.tiendas,
+                                            miUsuarioId = usuario.id,
+                                            darkTheme = darkTheme,
                                             onRefresh = { chatVm.cargarConversaciones(usuario.id, storeState.miTienda?.id) },
                                             onAbrirConversacion = { conv ->
-                                                chatVm.abrirSala(conv)
+                                                chatVm.abrirSala(conv, usuario.id)
                                                 subRoute = MarketSubRoute.SalaChat
                                             },
-                                            onBloquearConversacion = { chatVm.bloquearConversacion(it) },
-                                            onDesbloquearConversacion = { chatVm.desbloquearConversacion(it) },
+                                            onAbrirPerfilContacto = { conv ->
+                                                val soyComprador = conv.compradorId == usuario.id
+                                                subRoute = MarketSubRoute.PerfilContactoChat(
+                                                    conversacion = conv,
+                                                    tiendaId = if (soyComprador) conv.emprendimientoId else null,
+                                                    compradorId = if (soyComprador) null else conv.compradorId,
+                                                    nombreFallback = conv.nombreContraparte,
+                                                    volverA = MarketSubRoute.Tabs
+                                                )
+                                            },
+                                            onBloquearConversacion = { chatVm.bloquearConversacion(it, usuario.id) },
+                                            onDesbloquearConversacion = { chatVm.desbloquearConversacion(it, usuario.id) },
                                             onEliminarConversacion = { id ->
                                                 chatVm.eliminarConversacion(id) {
-                                                    chatVm.cargarConversaciones(usuario.id, storeState.miTienda?.id)
+                                                    chatVm.cargarConversaciones(usuario.id, storeState.miTienda?.id, silencioso = true)
                                                 }
                                             }
                                         )
@@ -228,6 +317,7 @@ fun MarketplaceShellScreen(
                                                 onOrdenCreada = {
                                                     catalogVm.vaciarTiendaDeCarrito(tiendaId)
                                                     catalogVm.cargarCatalogo()
+                                                    pedidosSubTab = PedidosSubTab.MIS_COMPRAS
                                                     currentTab = MarketTab.PEDIDOS
                                                 }
                                             )
@@ -244,10 +334,17 @@ fun MarketplaceShellScreen(
                                         )
                                     } else {
                                         MisPedidosScreen(
-                                            ordenes = ordersState.misOrdenes,
+                                            ordenesCompra = ordersState.misOrdenes,
+                                            ordenesVenta = if (tiendaAprobada != null) ordersState.ordenesRecibidas else emptyList(),
+                                            tieneTiendaAprobada = tiendaAprobada != null,
+                                            subTabActual = pedidosSubTab,
+                                            onSelectSubTab = { pedidosSubTab = it },
                                             loading = ordersState.loading,
-                                            onRefresh = { ordersVm.cargarMisOrdenes(usuario.id) },
-                                            onChatearOrden = { orden ->
+                                            onRefresh = {
+                                                ordersVm.cargarMisOrdenes(usuario.id)
+                                                tiendaAprobada?.id?.let { ordersVm.cargarOrdenesRecibidas(it) }
+                                            },
+                                            onChatearCompra = { orden ->
                                                 chatVm.abrirChatConTienda(
                                                     compradorId = usuario.id,
                                                     emprendimientoId = orden.emprendimientoId,
@@ -259,13 +356,42 @@ fun MarketplaceShellScreen(
                                             onCancelarOrden = { orden ->
                                                 ordersVm.cambiarEstadoOrden(
                                                     ordenId = orden.id,
-                                                    nuevoEstado = com.unp.emprendepiura.domain.model.EstadoOrden.CANCELADO,
+                                                    nuevoEstado = EstadoOrden.CANCELADO,
                                                     compradorIdRefresh = usuario.id
                                                 )
                                                 catalogVm.cargarCatalogo()
                                             },
                                             onConfirmarRecepcion = { orden ->
                                                 ordersVm.confirmarRecepcionComprador(orden, usuario.id) {
+                                                    catalogVm.cargarCatalogo()
+                                                }
+                                            },
+                                            onChatearVenta = { orden ->
+                                                chatVm.abrirChatConComprador(
+                                                    miUsuarioId = usuario.id,
+                                                    compradorId = orden.compradorId,
+                                                    emprendimientoId = orden.emprendimientoId,
+                                                    nombreComprador = orden.nombreComprador,
+                                                    ordenId = orden.id,
+                                                    onAbierto = { subRoute = MarketSubRoute.SalaChat }
+                                                )
+                                            },
+                                            onAvanzarOrdenVenta = { orden, nuevoEstado ->
+                                                val tiendaId = tiendaAprobada?.id
+                                                ordersVm.cambiarEstadoOrden(
+                                                    ordenId = orden.id,
+                                                    nuevoEstado = nuevoEstado,
+                                                    emprendimientoIdRefresh = tiendaId
+                                                )
+                                                catalogVm.cargarCatalogo()
+                                            },
+                                            onConfirmarEntregaConPin = { orden, pin ->
+                                                val tiendaId = tiendaAprobada?.id
+                                                ordersVm.confirmarEntregaConPin(
+                                                    orden = orden,
+                                                    pinIngresado = pin,
+                                                    emprendimientoIdRefresh = tiendaId
+                                                ) {
                                                     catalogVm.cargarCatalogo()
                                                 }
                                             }
@@ -276,10 +402,16 @@ fun MarketplaceShellScreen(
                                 MarketTab.PERFIL -> PerfilMarketplaceScreen(
                                     usuario = usuario,
                                     miTienda = if (usuario == null) null else storeState.miTienda,
+                                    entregasPendientesCount = ordersState.entregasPendientesCount,
                                     darkTheme = darkTheme,
                                     onToggleTheme = onToggleTheme,
+                                    onAbrirPedidosPorEntregar = {
+                                        tiendaAprobada?.id?.let { ordersVm.cargarOrdenesRecibidas(it) }
+                                        pedidosSubTab = PedidosSubTab.POR_ENTREGAR
+                                        currentTab = MarketTab.PEDIDOS
+                                    },
                                     onAbrirMiTienda = {
-                                        storeState.miTienda?.id?.let { ordersVm.cargarOrdenesRecibidas(it) }
+                                        tiendaAprobada?.id?.let { ordersVm.cargarOrdenesRecibidas(it) }
                                         subRoute = MarketSubRoute.MiTienda
                                     },
                                     onSolicitarTienda = { subRoute = MarketSubRoute.SolicitarTienda },
@@ -301,12 +433,26 @@ fun MarketplaceShellScreen(
 
                 is MarketSubRoute.DetalleProducto -> {
                     val p = route.producto
+                    val tiendaProd = catalogState.tiendas[p.emprendimientoId]
                     ProductoDetalleScreen(
                         producto = p,
-                        tienda = catalogState.tiendas[p.emprendimientoId],
+                        tienda = tiendaProd,
                         esPropioProducto = usuario != null && storeState.miTienda?.id == p.emprendimientoId,
                         onVolver = { subRoute = MarketSubRoute.Tabs },
                         onAgregarCarrito = { catalogVm.agregarAlCarrito(it) },
+                        onIrAlCarrito = {
+                            currentTab = MarketTab.CARRITO
+                            subRoute = MarketSubRoute.Tabs
+                        },
+                        onAbrirPerfilTienda = {
+                            subRoute = MarketSubRoute.PerfilContactoChat(
+                                conversacion = null,
+                                tiendaId = p.emprendimientoId,
+                                compradorId = null,
+                                nombreFallback = tiendaProd?.nombreTienda ?: p.nombreTienda,
+                                volverA = route
+                            )
+                        },
                         onChatearConTienda = { prod ->
                             if (usuario == null) {
                                 onIrAAuth()
@@ -331,27 +477,116 @@ fun MarketplaceShellScreen(
                             mensajes = chatState.mensajes,
                             tiendaContraparte = chatState.tiendaContraparte ?: catalogState.tiendas[conv.emprendimientoId],
                             miUsuarioId = usuario.id,
+                            darkTheme = darkTheme,
                             loading = chatState.loadingMensajes,
                             enviando = chatState.enviando,
+                            contraparteEnLinea = chatState.contraparteEnLinea,
                             contraparteEscribiendo = chatState.contraparteEscribiendo,
-                            estaBloqueado = chatState.conversacionesBloqueadas.contains(conv.id),
+                            onNotificarEscritura = { escribiendo ->
+                                chatVm.notificarEscritura(usuario.id, escribiendo)
+                            },
+                            onAbrirPerfilContacto = {
+                                val soyComprador = conv.compradorId == usuario.id
+                                subRoute = MarketSubRoute.PerfilContactoChat(
+                                    conversacion = conv,
+                                    tiendaId = if (soyComprador) conv.emprendimientoId else null,
+                                    compradorId = if (soyComprador) null else conv.compradorId,
+                                    nombreFallback = conv.nombreContraparte,
+                                    volverA = MarketSubRoute.SalaChat
+                                )
+                            },
                             onEnviar = { chatVm.enviarMensaje(usuario.id, it) },
-                            onBloquear = { chatVm.bloquearConversacion(conv.id) },
-                            onDesbloquear = { chatVm.desbloquearConversacion(conv.id) },
+                            onBloquear = { chatVm.bloquearConversacion(conv.id, usuario.id) },
+                            onDesbloquear = { chatVm.desbloquearConversacion(conv.id, usuario.id) },
                             onEliminarConversacion = {
                                 chatVm.eliminarConversacion(conv.id) {
-                                    chatVm.cerrarSala()
-                                    chatVm.cargarConversaciones(usuario.id, storeState.miTienda?.id)
+                                    chatVm.cerrarSala(usuario.id)
+                                    chatVm.cargarConversaciones(usuario.id, storeState.miTienda?.id, silencioso = true)
                                     subRoute = MarketSubRoute.Tabs
                                 }
                             },
                             onVolver = {
-                                chatVm.cerrarSala()
-                                chatVm.cargarConversaciones(usuario.id, storeState.miTienda?.id)
+                                chatVm.cerrarSala(usuario.id)
+                                chatVm.cargarConversaciones(usuario.id, storeState.miTienda?.id, silencioso = true)
                                 subRoute = MarketSubRoute.Tabs
                             }
                         )
                     }
+                }
+
+                is MarketSubRoute.PerfilContactoChat -> {
+                    val convFresca = route.conversacion?.let { c ->
+                        chatState.conversacionActiva?.takeIf { it.id == c.id }
+                            ?: chatState.conversaciones.firstOrNull { it.id == c.id }
+                            ?: c
+                    }
+                    val objetivo: PerfilChatObjetivo = if (route.tiendaId != null) {
+                        val tienda = chatState.tiendaContraparte?.takeIf { it.id == route.tiendaId }
+                            ?: catalogState.tiendas[route.tiendaId]
+                        val prods = catalogState.productos.filter { it.emprendimientoId == route.tiendaId }
+                        PerfilChatObjetivo.EmprendimientoPerfil(
+                            tienda = tienda,
+                            nombreFallback = route.nombreFallback,
+                            productosTienda = prods
+                        )
+                    } else {
+                        val comprador = chatState.compradorContraparte?.takeIf { it.id == route.compradorId }
+                            ?: route.compradorId?.let { chatState.usuariosCache[it] }
+                        val entregas = ordersState.ordenesRecibidas.count {
+                            it.compradorId == route.compradorId && it.estado == EstadoOrden.ENTREGADO
+                        }
+                        PerfilChatObjetivo.CompradorPerfil(
+                            comprador = comprador,
+                            nombreFallback = route.nombreFallback,
+                            entregasConTienda = entregas
+                        )
+                    }
+
+                    PerfilContactoChatScreen(
+                        objetivo = objetivo,
+                        conversacion = convFresca,
+                        miUsuarioId = usuario?.id.orEmpty(),
+                        darkTheme = darkTheme,
+                        contraparteEnLinea = route.volverA == MarketSubRoute.SalaChat && chatState.contraparteEnLinea,
+                        onVolver = { subRoute = route.volverA },
+                        onIrAlChat = {
+                            if (usuario == null) {
+                                onIrAAuth()
+                            } else if (convFresca != null) {
+                                if (chatState.conversacionActiva?.id != convFresca.id) {
+                                    chatVm.abrirSala(convFresca, usuario.id)
+                                }
+                                subRoute = MarketSubRoute.SalaChat
+                            } else if (route.tiendaId != null) {
+                                chatVm.abrirChatConTienda(
+                                    compradorId = usuario.id,
+                                    emprendimientoId = route.tiendaId,
+                                    nombreTienda = route.nombreFallback,
+                                    onAbierto = { subRoute = MarketSubRoute.SalaChat }
+                                )
+                            }
+                        },
+                        onAbrirProducto = { prod -> subRoute = MarketSubRoute.DetalleProducto(prod) },
+                        onBloquear = {
+                            if (convFresca != null && usuario != null) {
+                                chatVm.bloquearConversacion(convFresca.id, usuario.id)
+                            }
+                        },
+                        onDesbloquear = {
+                            if (convFresca != null && usuario != null) {
+                                chatVm.desbloquearConversacion(convFresca.id, usuario.id)
+                            }
+                        },
+                        onEliminarConversacion = {
+                            if (convFresca != null && usuario != null) {
+                                chatVm.eliminarConversacion(convFresca.id) {
+                                    chatVm.cerrarSala(usuario.id)
+                                    chatVm.cargarConversaciones(usuario.id, storeState.miTienda?.id, silencioso = true)
+                                    subRoute = MarketSubRoute.Tabs
+                                }
+                            }
+                        }
+                    )
                 }
 
                 MarketSubRoute.SolicitarTienda -> if (usuario != null) {
@@ -379,9 +614,15 @@ fun MarketplaceShellScreen(
 
                 MarketSubRoute.MiTienda -> MiTiendaScreen(
                     storeState = storeState,
-                    ordenesRecibidas = ordersState.ordenesRecibidas,
+                    entregasPendientesCount = ordersState.entregasPendientesCount,
                     categorias = catalogState.categorias,
                     onVolver = { subRoute = MarketSubRoute.Tabs },
+                    onIrAPedidosPorEntregar = {
+                        tiendaAprobada?.id?.let { ordersVm.cargarOrdenesRecibidas(it) }
+                        pedidosSubTab = PedidosSubTab.POR_ENTREGAR
+                        currentTab = MarketTab.PEDIDOS
+                        subRoute = MarketSubRoute.Tabs
+                    },
                     onGuardarProducto = { prodExist, t, d, p, s, catId, z, uri, onDone ->
                         val tiendaId = storeState.miTienda?.id ?: return@MiTiendaScreen
                         storeVm.guardarProducto(context, prodExist, tiendaId, t, d, p, s, catId, z, uri) {
@@ -393,17 +634,6 @@ fun MarketplaceShellScreen(
                         val tiendaId = storeState.miTienda?.id ?: return@MiTiendaScreen
                         storeVm.toggleEstadoProducto(prod, tiendaId)
                         catalogVm.cargarCatalogo()
-                    },
-                    onAvanzarOrden = { orden, nuevoEstado ->
-                        val tiendaId = storeState.miTienda?.id
-                        ordersVm.cambiarEstadoOrden(orden.id, nuevoEstado, emprendimientoIdRefresh = tiendaId)
-                        catalogVm.cargarCatalogo()
-                    },
-                    onConfirmarEntregaConPin = { orden, pin ->
-                        val tiendaId = storeState.miTienda?.id
-                        ordersVm.confirmarEntregaConPin(orden, pin, emprendimientoIdRefresh = tiendaId) {
-                            catalogVm.cargarCatalogo()
-                        }
                     }
                 )
 
@@ -436,6 +666,7 @@ fun MarketplaceShellScreen(
             successMessage = bannerExito,
             onClearMessages = {
                 ordersVm.limpiarMensajes()
+                chatVm.limpiarMensajes()
                 storeVm.limpiarMensajes()
                 adminVm.limpiarMensajes()
                 catalogVm.limpiarMensajes()

@@ -8,6 +8,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -20,6 +22,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.unp.emprendepiura.core.theme.pressScale
+import com.unp.emprendepiura.core.theme.rememberPressInteraction
 import com.unp.emprendepiura.core.ui.ProductThumbnail
 import com.unp.emprendepiura.core.ui.StatusPillBadge
 import com.unp.emprendepiura.core.util.PiuraConstants
@@ -34,14 +38,21 @@ fun ProductoDetalleScreen(
     esPropioProducto: Boolean,
     onVolver: () -> Unit,
     onAgregarCarrito: (Producto) -> String,
+    onIrAlCarrito: () -> Unit,
+    onAbrirPerfilTienda: () -> Unit,
     onChatearConTienda: (Producto) -> Unit
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     var feedbackMensaje by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(feedbackMensaje) {
-        feedbackMensaje?.let {
-            snackbarHostState.showSnackbar(it)
+        feedbackMensaje?.let { msg ->
+            snackbarHostState.currentSnackbarData?.dismiss()
+            snackbarHostState.showSnackbar(
+                message = msg,
+                actionLabel = "Ver carrito",
+                duration = SnackbarDuration.Short
+            )
             feedbackMensaje = null
         }
     }
@@ -57,7 +68,67 @@ fun ProductoDetalleScreen(
                 }
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            SnackbarHost(hostState = snackbarHostState) { data ->
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.inverseSurface,
+                    shadowElevation = 10.dp,
+                    modifier = Modifier
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                        .fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 14.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = Color(0xFF4ADE80),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = data.visuals.message,
+                                color = MaterialTheme.colorScheme.inverseOnSurface,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        data.visuals.actionLabel?.let { actionText ->
+                            val goCartPress = rememberPressInteraction()
+                            Button(
+                                onClick = {
+                                    data.dismiss()
+                                    onIrAlCarrito()
+                                },
+                                interactionSource = goCartPress,
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF2563EB),
+                                    contentColor = Color.White
+                                ),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier
+                                    .padding(start = 8.dp)
+                                    .pressScale(goCartPress)
+                            ) {
+                                Text(actionText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        },
         bottomBar = {
             Surface(shadowElevation = 10.dp, tonalElevation = 2.dp) {
                 Row(
@@ -67,24 +138,32 @@ fun ProductoDetalleScreen(
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    val chatPress = rememberPressInteraction()
                     OutlinedButton(
                         onClick = { onChatearConTienda(producto) },
                         enabled = !esPropioProducto,
+                        interactionSource = chatPress,
                         shape = RoundedCornerShape(14.dp),
                         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 13.dp),
-                        modifier = Modifier.weight(0.9f)
+                        modifier = Modifier
+                            .weight(0.9f)
+                            .pressScale(chatPress)
                     ) {
                         Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
                         Text("Mensaje", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                     }
 
+                    val cartPress = rememberPressInteraction()
                     Button(
                         onClick = { feedbackMensaje = onAgregarCarrito(producto) },
                         enabled = !esPropioProducto && producto.stock > 0,
+                        interactionSource = cartPress,
                         shape = RoundedCornerShape(14.dp),
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 13.dp),
-                        modifier = Modifier.weight(1.3f)
+                        modifier = Modifier
+                            .weight(1.3f)
+                            .pressScale(cartPress)
                     ) {
                         Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
@@ -157,25 +236,41 @@ fun ProductoDetalleScreen(
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
+                val storePress = rememberPressInteraction()
                 Surface(
+                    onClick = onAbrirPerfilTienda,
+                    interactionSource = storePress,
                     shape = RoundedCornerShape(18.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .pressScale(storePress)
                 ) {
                     Column(
                         modifier = Modifier.padding(14.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Row(
+                            modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Icon(Icons.Default.Storefront, null, tint = MaterialTheme.colorScheme.primary)
-                            Text(
-                                text = tienda?.nombreTienda ?: producto.nombreTienda,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Default.Storefront, null, tint = MaterialTheme.colorScheme.primary)
+                                Text(
+                                    text = tienda?.nombreTienda ?: producto.nombreTienda,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp
+                                )
+                            }
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = "Ver perfil de tienda",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         if (tienda != null) {

@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -30,8 +31,10 @@ fun BiometricAuthScreen(
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
 
-    LaunchedEffect(Unit) {
-        viewModel.inicializarDniRecordado(context)
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.limpiarFormulariosAuth(context)
+        }
     }
 
     LaunchedEffect(state.vistaActual) {
@@ -101,6 +104,7 @@ fun BiometricAuthScreen(
                     saving = state.saving,
                     esModoEdicion = state.esModoEdicion,
                     buscandoUsuario = state.buscandoUsuarioDni,
+                    dniError = state.regDniError,
                     onDniChange = { dni -> viewModel.onRegDniChange(dni, context) },
                     onNombreChange = viewModel::onRegNombreChange,
                     onTelefonoChange = viewModel::onRegTelefonoChange,

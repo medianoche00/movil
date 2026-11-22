@@ -34,6 +34,7 @@ data class BiometricUiState(
     val regVectorFacial: String = "",
     val esModoEdicion: Boolean = false,
     val buscandoUsuarioDni: Boolean = false,
+    val regDniError: String? = null,
 
     // Modal de huella dactilar
     val mostrarModalHuella: Boolean = false,

@@ -4,8 +4,10 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.unp.emprendepiura.core.network.SupaClient
 import com.unp.emprendepiura.core.util.CodigoEntregaUtil
 import com.unp.emprendepiura.core.util.UriBytesUtil
+import com.unp.emprendepiura.data.dto.UsuarioRowDto
 import com.unp.emprendepiura.data.repository.CatalogRepository
 import com.unp.emprendepiura.data.repository.OrderRepository
 import com.unp.emprendepiura.domain.model.CartItemLocal
@@ -14,6 +16,7 @@ import com.unp.emprendepiura.domain.model.MetodoPago
 import com.unp.emprendepiura.domain.model.Orden
 import com.unp.emprendepiura.domain.model.TipoEntrega
 import com.unp.emprendepiura.domain.validator.MarketplaceValidator
+import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,7 +32,12 @@ data class OrdersUiState(
     val ordenesRecibidas: List<Orden> = emptyList(),
     val error: String? = null,
     val exito: String? = null
-)
+) {
+    val entregasPendientesCount: Int
+        get() = ordenesRecibidas.count {
+            it.estado != EstadoOrden.ENTREGADO && it.estado != EstadoOrden.CANCELADO
+        }
+}
 
 class OrdersViewModel(
     private val orderRepo: OrderRepository = OrderRepository(),
@@ -64,11 +72,18 @@ class OrdersViewModel(
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             try {
-                val ordenes = withContext(Dispatchers.IO) {
-                    orderRepo.getOrdenesEmprendimiento(emprendimientoId)
+                val enriquecidas = withContext(Dispatchers.IO) {
+                    val ordenes = orderRepo.getOrdenesEmprendimiento(emprendimientoId)
+                    val usuarios = runCatching {
+                        SupaClient.client.from("usuarios").select().decodeList<UsuarioRowDto>()
+                    }.getOrDefault(emptyList()).associateBy { it.id }
+
+                    ordenes.map { o ->
+                        o.copy(nombreComprador = usuarios[o.compradorId]?.nombre ?: "Comprador")
+                    }
                 }
-                _state.update { it.copy(loading = false, ordenesRecibidas = ordenes) }
-            } catch (e: Exception) {
+                _state.update { it.copy(loading = false, ordenesRecibidas = enriquecidas) }
+            } catch (_: Exception) {
                 _state.update { it.copy(loading = false, error = "No se pudieron cargar los pedidos recibidos.") }
             }
         }
@@ -176,7 +191,7 @@ class OrdersViewModel(
         val valido = CodigoEntregaUtil.validarCodigoEntrega(orden.id, orden.codigoOrden, pinIngresado)
         if (!valido) {
             _state.update {
-                it.copy(error = "Código PIN de entrega incorrecto. Pide al comprador el código de 4 dígitos de su pedido.")
+                it.copy(error = "Código PIN incorrecto o vencido. Pide al comprador el código dinámico de 6 dígitos vigente en su pedido.")
             }
             return
         }
@@ -228,6 +243,10 @@ class OrdersViewModel(
                 _state.update { it.copy(loading = false, error = "No se pudo confirmar la recepción: ${e.message}") }
             }
         }
+    }
+
+    fun limpiarEstadoSesion() {
+        _state.value = OrdersUiState()
     }
 
     fun limpiarMensajes() = _state.update { it.copy(error = null, exito = null) }

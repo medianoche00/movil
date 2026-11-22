@@ -1,38 +1,81 @@
 package com.unp.emprendepiura.core.util
 
-import kotlin.math.abs
+import java.nio.ByteBuffer
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 /*
  * Archivo: CodigoEntregaUtil.kt
- * Proposito: Generacion determinista y validacion antifraude de codigos PIN de confirmacion
- *            de entrega (estilo Uber Eats / Rappi) para comprador y emprendedor local.
+ * Proposito: Generacion y validacion TOTP (HMAC-SHA256) de codigos PIN dinamicos de 6 digitos
+ *            con rotacion automatica cada 90 segundos estilo Authenticator para entregas seguras.
  */
 object CodigoEntregaUtil {
 
-    /**
-     * Genera un PIN numerico de seguridad de 4 digitos único y determinista para cada pedido.
-     * Ejemplo: "4829", "7193".
-     */
-    fun obtenerCodigoEntrega(ordenId: String, codigoOrden: String): String {
-        val semilla = (ordenId.trim() + codigoOrden.trim()).ifBlank { "unp_delivery_safe" }
-        val hash = abs(semilla.hashCode())
-        val pin = (hash % 9000) + 1000
-        return pin.toString()
+    const val PERIODO_SEGUNDOS: Long = 90L
+    private const val CLAVE_APP_PIN = "EMPRENDEPIURA_UNP_DELIVERY_TOTP_V2_2026"
+
+    fun ventanaActual(nowEpochSeconds: Long = System.currentTimeMillis() / 1000L): Long =
+        nowEpochSeconds / PERIODO_SEGUNDOS
+
+    fun segundosRestantes(nowEpochSeconds: Long = System.currentTimeMillis() / 1000L): Int {
+        val transcurridos = nowEpochSeconds % PERIODO_SEGUNDOS
+        val restantes = PERIODO_SEGUNDOS - transcurridos
+        return restantes.toInt().coerceIn(1, PERIODO_SEGUNDOS.toInt())
     }
 
     /**
-     * Valida si el codigo ingresado por el emprendedor o repartidor coincide con el PIN del pedido.
+     * Genera un PIN dinamico de 6 digitos determinista para la orden y ventana de 90 segundos.
+     * Ejemplo: "482917".
      */
-    fun validarCodigoEntrega(ordenId: String, codigoOrden: String, pinIngresado: String): Boolean {
-        val esperado = obtenerCodigoEntrega(ordenId, codigoOrden)
-        val limpio = pinIngresado.replace("\\s".toRegex(), "").replace("-", "").trim()
-        return limpio == esperado
+    fun obtenerCodigoDinamico(
+        ordenId: String,
+        codigoOrden: String,
+        ventana: Long = ventanaActual()
+    ): String {
+        val secreto = "$CLAVE_APP_PIN|${ordenId.trim()}|${codigoOrden.trim()}"
+            .toByteArray(Charsets.UTF_8)
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(secreto, "HmacSHA256"))
+
+        val msg = ByteBuffer.allocate(8).putLong(ventana).array()
+        val hash = mac.doFinal(msg)
+
+        // Truncado dinamico estandar RFC 4226 / 6238
+        val offset = hash[hash.size - 1].toInt() and 0x0F
+        val binario =
+            ((hash[offset].toInt() and 0x7F) shl 24) or
+            ((hash[offset + 1].toInt() and 0xFF) shl 16) or
+            ((hash[offset + 2].toInt() and 0xFF) shl 8) or
+            (hash[offset + 3].toInt() and 0xFF)
+
+        val codigo = binario % 1_000_000
+        return codigo.toString().padStart(6, '0')
     }
 
     /**
-     * Retorna el codigo formateado con espacios para maxima legibilidad visual (ej: "4  8  2  9").
+     * Valida el codigo de 6 digitos aceptando la ventana vigente (T) y tolerancia +/-1 ventana
+     * para evitar falsos rechazos si el codigo rota justo al momento de confirmarlo.
      */
-    fun formatearPinEspaciado(pin: String): String {
-        return pin.map { "$it " }.joinToString("").trim()
+    fun validarCodigoEntrega(
+        ordenId: String,
+        codigoOrden: String,
+        pinIngresado: String,
+        nowEpochSeconds: Long = System.currentTimeMillis() / 1000L
+    ): Boolean {
+        val limpio = pinIngresado.filter { it.isDigit() }
+        if (limpio.length != 6) return false
+
+        val ventana = ventanaActual(nowEpochSeconds)
+        return (-1L..1L).any { delta ->
+            obtenerCodigoDinamico(ordenId, codigoOrden, ventana + delta) == limpio
+        }
+    }
+
+    /**
+     * Formatea los 6 digitos en dos bloques de 3 para lectura rapida estilo Authenticator ("482  917").
+     */
+    fun formatearPin6(pin: String): String {
+        val limpio = pin.filter { it.isDigit() }.padStart(6, '0').take(6)
+        return "${limpio.substring(0, 3)}  ${limpio.substring(3, 6)}"
     }
 }

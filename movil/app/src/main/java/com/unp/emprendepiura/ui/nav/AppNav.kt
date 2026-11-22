@@ -123,9 +123,7 @@ fun AppNav(
                     onSolicitarCamaraFacial = ::abrirEscanerFacialConPermiso,
                     onEntrarAlMarketplace = ::salirDeAuthHaciaMarketplace,
                     onVolverAlMarketplace = {
-                        if (authState.vistaActual == BiometricVista.REGISTRO) {
-                            biometricVm.volverABienvenida()
-                        }
+                        biometricVm.limpiarFormulariosAuth(context)
                         salirDeAuthHaciaMarketplace()
                     }
                 )
@@ -138,9 +136,7 @@ fun AppNav(
                     onToggleTheme = onToggleTheme,
                     onIrAAuth = {
                         authInicioEnRegistro = false
-                        if (authState.vistaActual != BiometricVista.BIENVENIDA) {
-                            biometricVm.volverABienvenida()
-                        }
+                        biometricVm.prepararLoginLimpio(context)
                         nav.navigate(ROUTE_AUTH) {
                             launchSingleTop = true
                         }

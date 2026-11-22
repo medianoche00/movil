@@ -9,9 +9,9 @@ import kotlinx.serialization.Serializable
 data class ConversacionDto(
     val id: String = "",
     @SerialName("comprador_id")
-    val compradorId: String,
+    val compradorId: String = "",
     @SerialName("emprendimiento_id")
-    val emprendimientoId: String,
+    val emprendimientoId: String = "",
     @SerialName("producto_id")
     val productoId: String? = null,
     @SerialName("orden_id")
@@ -19,7 +19,11 @@ data class ConversacionDto(
     @SerialName("ultimo_mensaje")
     val ultimoMensaje: String = "",
     @SerialName("actualizado_en")
-    val actualizadoEn: String = ""
+    val actualizadoEn: String = "",
+    @SerialName("bloqueado_por")
+    val bloqueadoPor: String? = null,
+    @SerialName("bloqueado_en")
+    val bloqueadoEn: String? = null
 )
 
 @Serializable
@@ -38,10 +42,10 @@ data class ConversacionCreateDto(
 data class MensajeDto(
     val id: String = "",
     @SerialName("conversacion_id")
-    val conversacionId: String,
+    val conversacionId: String = "",
     @SerialName("remitente_id")
-    val remitenteId: String,
-    val contenido: String,
+    val remitenteId: String = "",
+    val contenido: String = "",
     val leido: Boolean = false,
     @SerialName("creado_en")
     val creadoEn: String = ""
@@ -56,9 +60,23 @@ data class MensajeInsertDto(
     val contenido: String
 )
 
+@Serializable
+data class TypingBroadcastDto(
+    @SerialName("usuario_id")
+    val usuarioId: String,
+    val escribiendo: Boolean
+)
+
+@Serializable
+data class ChatPresenceDto(
+    @SerialName("usuario_id")
+    val usuarioId: String
+)
+
 fun ConversacionDto.toDomain(
     nombreContraparte: String = "",
-    subtituloProducto: String = ""
+    subtituloProducto: String = "",
+    mensajesNoLeidos: Int = 0
 ) = Conversacion(
     id = id,
     compradorId = compradorId,
@@ -67,6 +85,9 @@ fun ConversacionDto.toDomain(
     ordenId = ordenId,
     ultimoMensaje = ultimoMensaje,
     actualizadoEn = actualizadoEn,
+    bloqueadoPor = bloqueadoPor,
+    bloqueadoEn = bloqueadoEn,
+    mensajesNoLeidos = mensajesNoLeidos,
     nombreContraparte = nombreContraparte,
     subtituloProducto = subtituloProducto
 )

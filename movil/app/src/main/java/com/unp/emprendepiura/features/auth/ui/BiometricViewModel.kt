@@ -35,25 +35,51 @@ class BiometricViewModel(
     private val _state = MutableStateFlow(BiometricUiState())
     val state: StateFlow<BiometricUiState> = _state.asStateFlow()
 
-    private var dniInicializado = false
     private var usuarioObjetivoFacial: Usuario? = null
     private var similitudFacialTemp: Int = 0
 
-    fun inicializarDniRecordado(context: Context) {
-        if (dniInicializado) return
-        dniInicializado = true
-        val recordado = repository.obtenerUltimoDniRecordado(context)
-        if (recordado.length == 8 && _state.value.loginDni.isEmpty()) {
-            _state.update { it.copy(loginDni = recordado) }
-            viewModelScope.launch {
-                val existe = withContext(Dispatchers.IO) {
-                    repository.getByDni(context, recordado) != null
-                }
-                if (!existe && _state.value.loginDni == recordado) {
-                    _state.update { it.copy(loginDni = "", dniInlineError = null) }
-                }
-            }
+    /**
+     * Limpia completamente todos los campos de Login y Registro para evitar
+     * retencion o exposicion de datos personales entre navegaciones.
+     */
+    fun limpiarFormulariosAuth(context: Context? = null) {
+        if (context != null) {
+            repository.limpiarUltimoDniRecordado(context)
         }
+        usuarioObjetivoFacial = null
+        similitudFacialTemp = 0
+        _state.update {
+            it.copy(
+                loginDni = "",
+                loginContrasena = "",
+                mostrarCampoContrasena = false,
+                dniInlineError = null,
+                regDni = "",
+                regNombre = "",
+                regTelefono = "",
+                regCorreo = "",
+                regZonaPiura = PiuraConstants.ZONAS_PIURA.first(),
+                regContrasena = "",
+                regPasswordHashActual = "",
+                regHuellaToken = "",
+                regFotoFacialUri = null,
+                regFotoFacialBytes = null,
+                regVectorFacial = "",
+                esModoEdicion = false,
+                buscandoUsuarioDni = false,
+                regDniError = null,
+                mostrarModalHuella = false,
+                mostrarEscanerFacial = false,
+                huellaUsuarioObjetivo = null,
+                huellaErrorInicial = null,
+                errorMessage = null
+            )
+        }
+    }
+
+    fun prepararLoginLimpio(context: Context? = null) {
+        limpiarFormulariosAuth(context)
+        _state.update { it.copy(vistaActual = BiometricVista.BIENVENIDA, successMessage = null) }
     }
 
     fun onLoginDniChange(v: String) {
@@ -70,15 +96,17 @@ class BiometricViewModel(
     }
 
     fun onRegDniChange(v: String, context: Context) {
+        if (_state.value.esModoEdicion) return
         val soloDigitos = v.filter { it.isDigit() }.take(8)
         _state.update {
             it.copy(
                 regDni = soloDigitos,
-                esModoEdicion = if (soloDigitos.length < 8) false else it.esModoEdicion
+                regDniError = null,
+                esModoEdicion = false
             )
         }
         if (soloDigitos.length == 8) {
-            buscarYPrecargarUsuario(context, soloDigitos)
+            verificarDisponibilidadDni(context, soloDigitos)
         }
     }
 
@@ -88,49 +116,43 @@ class BiometricViewModel(
     fun onRegZonaChange(v: String) = _state.update { it.copy(regZonaPiura = v) }
     fun onRegContrasenaChange(v: String) = _state.update { it.copy(regContrasena = v) }
 
-    fun buscarYPrecargarUsuario(context: Context, dni: String) {
+    /**
+     * Comprueba unicamente si el DNI ya esta en uso sin cargar ni exponer ningun dato personal.
+     */
+    private fun verificarDisponibilidadDni(context: Context, dni: String) {
         if (dni.length != 8) return
         viewModelScope.launch {
-            _state.update { it.copy(buscandoUsuarioDni = true) }
-            val usuario = withContext(Dispatchers.IO) {
-                runCatching { repository.getByDni(context, dni) }.getOrNull()
+            _state.update { it.copy(buscandoUsuarioDni = true, regDniError = null) }
+            val existe = withContext(Dispatchers.IO) {
+                runCatching { repository.existeDni(context, dni) }.getOrDefault(false)
             }
-            _state.update { it.copy(buscandoUsuarioDni = false) }
-
-            if (usuario != null) {
-                val fotoUri = usuario.fotoPerfil.takeIf { it.isNotBlank() }?.let {
-                    runCatching { Uri.parse(it) }.getOrNull()
-                }
-                _state.update {
-                    it.copy(
-                        regDni = usuario.dni,
-                        regNombre = usuario.nombre,
-                        regTelefono = usuario.telefono,
-                        regCorreo = usuario.correo,
-                        regZonaPiura = usuario.zonaPiura.ifBlank { PiuraConstants.ZONAS_PIURA.first() },
-                        regContrasena = "",
-                        regPasswordHashActual = usuario.passwordHash,
-                        regHuellaToken = usuario.huella,
-                        regFotoFacialUri = fotoUri,
-                        regFotoFacialBytes = null,
-                        regVectorFacial = usuario.vectorFacial,
-                        esModoEdicion = true,
-                        errorMessage = null,
-                        successMessage = null
+            _state.update { s ->
+                if (s.regDni != dni) {
+                    s.copy(buscandoUsuarioDni = false)
+                } else {
+                    s.copy(
+                        buscandoUsuarioDni = false,
+                        regDniError = if (existe) {
+                            "Este DNI ya tiene una cuenta registrada. Inicia sesión desde Acceso."
+                        } else {
+                            null
+                        }
                     )
                 }
-            } else {
-                _state.update { it.copy(esModoEdicion = false, regPasswordHashActual = "") }
             }
         }
     }
 
     fun irARegistro(context: Context? = null) {
-        val dniActual = _state.value.loginDni.trim()
+        if (context != null) repository.limpiarUltimoDniRecordado(context)
         _state.update {
             it.copy(
                 vistaActual = BiometricVista.REGISTRO,
-                regDni = if (dniActual.length == 8) dniActual else "",
+                loginDni = "",
+                loginContrasena = "",
+                mostrarCampoContrasena = false,
+                dniInlineError = null,
+                regDni = "",
                 regNombre = "",
                 regTelefono = "",
                 regCorreo = "",
@@ -142,14 +164,11 @@ class BiometricViewModel(
                 regFotoFacialBytes = null,
                 regVectorFacial = "",
                 esModoEdicion = false,
-                mostrarCampoContrasena = false,
-                dniInlineError = null,
+                buscandoUsuarioDni = false,
+                regDniError = null,
                 errorMessage = null,
                 successMessage = null
             )
-        }
-        if (context != null && dniActual.length == 8) {
-            buscarYPrecargarUsuario(context, dniActual)
         }
     }
 
@@ -210,7 +229,6 @@ class BiometricViewModel(
             return
         }
 
-        val dni = s.regDni
         _state.update {
             it.copy(
                 vistaActual = BiometricVista.BIENVENIDA,
@@ -218,7 +236,9 @@ class BiometricViewModel(
                 mostrarEscanerFacial = false,
                 esModoEdicion = false,
                 buscandoUsuarioDni = false,
-                loginDni = if (dni.length == 8) dni else it.loginDni,
+                loginDni = "",
+                loginContrasena = "",
+                mostrarCampoContrasena = false,
                 regDni = "",
                 regNombre = "",
                 regTelefono = "",
@@ -229,6 +249,7 @@ class BiometricViewModel(
                 regFotoFacialUri = null,
                 regFotoFacialBytes = null,
                 regVectorFacial = "",
+                regDniError = null,
                 dniInlineError = null,
                 errorMessage = null,
                 successMessage = null
@@ -237,11 +258,15 @@ class BiometricViewModel(
     }
 
     fun cerrarSesion() {
+        usuarioObjetivoFacial = null
+        similitudFacialTemp = 0
         _state.update {
             it.copy(
                 vistaActual = BiometricVista.BIENVENIDA,
+                loginDni = "",
                 loginContrasena = "",
                 mostrarCampoContrasena = false,
+                dniInlineError = null,
                 usuarioAutenticado = null,
                 metodoAutenticacion = "",
                 esModoEdicion = false,
@@ -256,6 +281,7 @@ class BiometricViewModel(
                 regFotoFacialUri = null,
                 regFotoFacialBytes = null,
                 regVectorFacial = "",
+                regDniError = null,
                 errorMessage = null,
                 successMessage = "Sesión cerrada correctamente."
             )
@@ -341,10 +367,10 @@ class BiometricViewModel(
                     return@launch
                 }
 
-                repository.recordarUltimoDni(context, usuario.dni)
                 _state.update {
                     it.copy(
                         loading = false,
+                        loginDni = "",
                         loginContrasena = "",
                         mostrarCampoContrasena = false,
                         usuarioAutenticado = usuario,
@@ -498,10 +524,11 @@ class BiometricViewModel(
                 }
             } else {
                 val usuario = s.huellaUsuarioObjetivo ?: return@launch
-                repository.recordarUltimoDni(context, usuario.dni)
                 _state.update {
                     it.copy(
                         mostrarModalHuella = false,
+                        loginDni = "",
+                        loginContrasena = "",
                         mostrarCampoContrasena = false,
                         usuarioAutenticado = usuario,
                         metodoAutenticacion = "Verificado por Huella Dactilar",
@@ -639,7 +666,6 @@ class BiometricViewModel(
         return if (comparacion.coincide) {
             usuarioObjetivoFacial = titular
             similitudFacialTemp = comparacion.porcentajeSimilitud
-            repository.recordarUltimoDni(context, titular.dni)
             ResultadoEscaneoEnVivo.Exito(
                 "Rostro verificado: ${titular.nombre} (${comparacion.porcentajeSimilitud}%)"
             )
@@ -723,6 +749,8 @@ class BiometricViewModel(
             _state.update {
                 it.copy(
                     mostrarEscanerFacial = false,
+                    loginDni = "",
+                    loginContrasena = "",
                     mostrarCampoContrasena = false,
                     procesandoRostro = false,
                     usuarioAutenticado = usuario,
@@ -755,6 +783,24 @@ class BiometricViewModel(
             _state.update { it.copy(saving = true, errorMessage = null, successMessage = null) }
             try {
                 val cleanDni = s.regDni.trim()
+
+                // Proteccion anti-suplantacion: nunca sobrescribir una cuenta existente desde registro publico
+                if (!s.esModoEdicion) {
+                    val yaExiste = withContext(Dispatchers.IO) {
+                        repository.existeDni(context, cleanDni)
+                    }
+                    if (yaExiste) {
+                        _state.update {
+                            it.copy(
+                                saving = false,
+                                regDniError = "Este DNI ya tiene una cuenta registrada. Inicia sesión desde Acceso.",
+                                errorMessage = "El DNI ingresado ya se encuentra registrado."
+                            )
+                        }
+                        return@launch
+                    }
+                }
+
                 val fotoUrl = if (s.regFotoFacialBytes != null && s.regFotoFacialBytes.isNotEmpty()) {
                     withContext(Dispatchers.IO) {
                         repository.uploadFacePhoto(context, cleanDni, s.regFotoFacialBytes)
@@ -804,7 +850,7 @@ class BiometricViewModel(
                     it.copy(
                         saving = false,
                         vistaActual = destino,
-                        loginDni = guardado.dni,
+                        loginDni = "",
                         loginContrasena = "",
                         mostrarCampoContrasena = false,
                         usuarioAutenticado = if (it.usuarioAutenticado?.dni == guardado.dni) guardado else it.usuarioAutenticado,
@@ -820,6 +866,7 @@ class BiometricViewModel(
                         regFotoFacialUri = null,
                         regFotoFacialBytes = null,
                         regVectorFacial = "",
+                        regDniError = null,
                         successMessage = mensajeExito
                     )
                 }

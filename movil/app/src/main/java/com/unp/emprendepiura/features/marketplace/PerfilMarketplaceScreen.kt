@@ -50,8 +50,10 @@ import com.unp.emprendepiura.domain.model.Usuario
 fun PerfilMarketplaceScreen(
     usuario: Usuario?,
     miTienda: Emprendimiento?,
+    entregasPendientesCount: Int,
     darkTheme: Boolean,
     onToggleTheme: () -> Unit,
+    onAbrirPedidosPorEntregar: () -> Unit,
     onAbrirMiTienda: () -> Unit,
     onSolicitarTienda: () -> Unit,
     onAbrirPanelAdmin: () -> Unit,
@@ -111,6 +113,8 @@ fun PerfilMarketplaceScreen(
                     UsuarioAutenticadoContent(
                         usuario = currentUser,
                         miTienda = miTienda,
+                        entregasPendientesCount = entregasPendientesCount,
+                        onAbrirPedidosPorEntregar = onAbrirPedidosPorEntregar,
                         onAbrirMiTienda = onAbrirMiTienda,
                         onSolicitarTienda = onSolicitarTienda,
                         onAbrirPanelAdmin = onAbrirPanelAdmin,
@@ -409,6 +413,8 @@ private fun GuestBenefitRow(
 private fun UsuarioAutenticadoContent(
     usuario: Usuario,
     miTienda: Emprendimiento?,
+    entregasPendientesCount: Int,
+    onAbrirPedidosPorEntregar: () -> Unit,
     onAbrirMiTienda: () -> Unit,
     onSolicitarTienda: () -> Unit,
     onAbrirPanelAdmin: () -> Unit,
@@ -483,10 +489,21 @@ private fun UsuarioAutenticadoContent(
         }
         EstadoEmprendimiento.APROBADO -> {
             PerfilActionCard(
+                icon = Icons.Default.LocalShipping,
+                tint = MaterialTheme.colorScheme.primary,
+                titulo = if (entregasPendientesCount > 0) {
+                    "Pedidos Por Entregar ($entregasPendientesCount)"
+                } else {
+                    "Pedidos Por Entregar"
+                },
+                subtitulo = "Gestiona entregas y valida PIN dinámico desde Pedidos",
+                onClick = onAbrirPedidosPorEntregar
+            )
+            PerfilActionCard(
                 icon = Icons.Default.Storefront,
                 tint = Color(0xFF15803D),
-                titulo = "Gestionar Mi Tienda (${miTienda.nombreTienda})",
-                subtitulo = "Publicar productos, stock y confirmar pedidos recibidos",
+                titulo = "Catálogo de Mi Tienda (${miTienda.nombreTienda})",
+                subtitulo = "Publicar, editar o pausar productos y controlar stock",
                 onClick = onAbrirMiTienda
             )
         }

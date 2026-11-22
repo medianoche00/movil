@@ -139,6 +139,8 @@ CREATE TABLE IF NOT EXISTS public.conversaciones (
     orden_id           UUID REFERENCES public.ordenes(id) ON DELETE SET NULL,
     ultimo_mensaje     TEXT NOT NULL DEFAULT '',
     actualizado_en     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    bloqueado_por      UUID REFERENCES public.usuarios(id) ON DELETE SET NULL,
+    bloqueado_en       TIMESTAMPTZ,
     UNIQUE (comprador_id, emprendimiento_id)
 );
 
@@ -152,6 +154,35 @@ CREATE TABLE IF NOT EXISTS public.mensajes (
 );
 
 CREATE INDEX IF NOT EXISTS idx_mensajes_conv_fecha ON public.mensajes(conversacion_id, creado_en ASC);
+
+ALTER TABLE public.conversaciones REPLICA IDENTITY FULL;
+ALTER TABLE public.mensajes       REPLICA IDENTITY FULL;
+
+CREATE OR REPLACE FUNCTION public.validar_bloqueo_antes_de_mensaje()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_bloqueado_por UUID;
+BEGIN
+    SELECT bloqueado_por
+    INTO v_bloqueado_por
+    FROM public.conversaciones
+    WHERE id = NEW.conversacion_id;
+
+    IF v_bloqueado_por IS NOT NULL THEN
+        RAISE EXCEPTION 'Esta conversacion se encuentra bloqueada.';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_validar_bloqueo_mensaje ON public.mensajes;
+CREATE TRIGGER trg_validar_bloqueo_mensaje
+BEFORE INSERT ON public.mensajes
+FOR EACH ROW
+EXECUTE FUNCTION public.validar_bloqueo_antes_de_mensaje();
 
 CREATE OR REPLACE FUNCTION public.actualizar_cabecera_conversacion()
 RETURNS TRIGGER

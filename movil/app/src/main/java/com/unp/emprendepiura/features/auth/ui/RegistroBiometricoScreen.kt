@@ -43,6 +43,7 @@ fun RegistroBiometricoScreen(
     saving: Boolean,
     esModoEdicion: Boolean = false,
     buscandoUsuario: Boolean = false,
+    dniError: String? = null,
     onDniChange: (String) -> Unit,
     onNombreChange: (String) -> Unit,
     onTelefonoChange: (String) -> Unit,
@@ -104,6 +105,8 @@ fun RegistroBiometricoScreen(
                     OutlinedTextField(
                         value = dni,
                         onValueChange = onDniChange,
+                        enabled = !saving && !esModoEdicion,
+                        isError = dniError != null,
                         label = { Text("DNI *") },
                         placeholder = { Text("8 dígitos numéricos") },
                         leadingIcon = { Icon(Icons.Default.Badge, null, modifier = Modifier.size(20.dp)) },
@@ -116,6 +119,15 @@ fun RegistroBiometricoScreen(
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(end = 10.dp)
+                                )
+                            }
+                        },
+                        supportingText = dniError?.let { err ->
+                            {
+                                Text(
+                                    text = err,
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontSize = 11.5.sp
                                 )
                             }
                         },
@@ -144,7 +156,7 @@ fun RegistroBiometricoScreen(
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Text(
-                                    text = "Usuario encontrado: $nombre. Puedes editar tus datos o recapturar tu huella/rostro.",
+                                    text = "Editando tu cuenta verificada. Puedes actualizar tus datos, huella o rostro.",
                                     fontSize = 12.sp,
                                     lineHeight = 16.sp,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -272,7 +284,7 @@ fun RegistroBiometricoScreen(
 
                 Button(
                     onClick = onGuardarUsuario,
-                    enabled = !saving,
+                    enabled = !saving && dniError == null,
                     shape = RoundedCornerShape(16.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
                     modifier = Modifier.weight(1.3f)
