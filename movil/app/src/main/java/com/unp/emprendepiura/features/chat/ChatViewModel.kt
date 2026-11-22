@@ -7,10 +7,12 @@ import com.unp.emprendepiura.data.dto.UsuarioRowDto
 import com.unp.emprendepiura.data.repository.CatalogRepository
 import com.unp.emprendepiura.data.repository.ChatRepository
 import com.unp.emprendepiura.domain.model.Conversacion
+import com.unp.emprendepiura.domain.model.Emprendimiento
 import com.unp.emprendepiura.domain.model.Mensaje
 import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,8 +26,12 @@ data class ChatUiState(
     val enviando: Boolean = false,
     val conversaciones: List<Conversacion> = emptyList(),
     val conversacionActiva: Conversacion? = null,
+    val tiendaContraparte: Emprendimiento? = null,
     val mensajes: List<Mensaje> = emptyList(),
-    val error: String? = null
+    val conversacionesBloqueadas: Set<String> = emptySet(),
+    val contraparteEscribiendo: Boolean = false,
+    val error: String? = null,
+    val exito: String? = null
 )
 
 class ChatViewModel(
@@ -37,6 +43,7 @@ class ChatViewModel(
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
 
     private var realtimeJob: Job? = null
+    private var typingSimulatorJob: Job? = null
 
     fun cargarConversaciones(usuarioId: String, miEmprendimientoId: String?) {
         if (usuarioId.isBlank()) return
@@ -90,8 +97,16 @@ class ChatViewModel(
 
     fun abrirSala(conversacion: Conversacion) {
         realtimeJob?.cancel()
+        typingSimulatorJob?.cancel()
         _state.update {
-            it.copy(conversacionActiva = conversacion, mensajes = emptyList(), loadingMensajes = true, error = null)
+            it.copy(
+                conversacionActiva = conversacion,
+                mensajes = emptyList(),
+                loadingMensajes = true,
+                tiendaContraparte = null,
+                contraparteEscribiendo = false,
+                error = null
+            )
         }
 
         viewModelScope.launch {
@@ -99,7 +114,10 @@ class ChatViewModel(
                 val msgs = withContext(Dispatchers.IO) {
                     chatRepo.getMensajes(conversacion.id)
                 }
-                _state.update { it.copy(loadingMensajes = false, mensajes = msgs) }
+                val tienda = withContext(Dispatchers.IO) {
+                    catalogRepo.getEmprendimientoPorId(conversacion.emprendimientoId)
+                }
+                _state.update { it.copy(loadingMensajes = false, mensajes = msgs, tiendaContraparte = tienda) }
             } catch (e: Exception) {
                 _state.update { it.copy(loadingMensajes = false, error = "No se pudieron cargar los mensajes.") }
             }
@@ -116,7 +134,13 @@ class ChatViewModel(
     }
 
     fun enviarMensaje(remitenteId: String, texto: String) {
-        val convId = _state.value.conversacionActiva?.id ?: return
+        val conv = _state.value.conversacionActiva ?: return
+        val convId = conv.id
+        if (_state.value.conversacionesBloqueadas.contains(convId)) {
+            _state.update { it.copy(error = "Esta conversación está bloqueada. Desbloquéala para chatear.") }
+            return
+        }
+
         val clean = texto.trim()
         if (clean.isEmpty()) return
 
@@ -130,8 +154,67 @@ class ChatViewModel(
                     val actualizados = if (s.mensajes.any { it.id == enviado.id }) s.mensajes else s.mensajes + enviado
                     s.copy(enviando = false, mensajes = actualizados)
                 }
+
+                // Simular presencia en vivo estilo WhatsApp / Telegram
+                iniciarSimulacionRespuestaContraparte(convId, remitenteId)
             } catch (e: Exception) {
                 _state.update { it.copy(enviando = false, error = "No se pudo enviar el mensaje.") }
+            }
+        }
+    }
+
+    /**
+     * Simula la presencia de "Escribiendo..." con los 3 puntos animados tipicos de WhatsApp/Telegram
+     * para una sensacion dinamica e hiperrealista de conversacion.
+     */
+    private fun iniciarSimulacionRespuestaContraparte(convId: String, miUsuarioId: String) {
+        typingSimulatorJob?.cancel()
+        typingSimulatorJob = viewModelScope.launch {
+            delay(1200)
+            if (_state.value.conversacionActiva?.id == convId) {
+                _state.update { it.copy(contraparteEscribiendo = true) }
+                delay(3000)
+                _state.update { it.copy(contraparteEscribiendo = false) }
+            }
+        }
+    }
+
+    fun notificarUsuarioEscribiendo(estaEscribiendo: Boolean) {
+        // Puede usarse para sincronizar estado de escritura local
+    }
+
+    fun bloquearConversacion(conversacionId: String) {
+        _state.update {
+            it.copy(
+                conversacionesBloqueadas = it.conversacionesBloqueadas + conversacionId,
+                exito = "Conversación bloqueada. No recibirás nuevos avisos."
+            )
+        }
+    }
+
+    fun desbloquearConversacion(conversacionId: String) {
+        _state.update {
+            it.copy(
+                conversacionesBloqueadas = it.conversacionesBloqueadas - conversacionId,
+                exito = "Conversación desbloqueada."
+            )
+        }
+    }
+
+    fun eliminarConversacion(conversacionId: String, onEliminado: () -> Unit) {
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    chatRepo.eliminarConversacion(conversacionId)
+                }
+                _state.update { s ->
+                    val filtradas = s.conversaciones.filterNot { it.id == conversacionId }
+                    val activa = if (s.conversacionActiva?.id == conversacionId) null else s.conversacionActiva
+                    s.copy(conversaciones = filtradas, conversacionActiva = activa, exito = "Conversación eliminada con éxito.")
+                }
+                onEliminado()
+            } catch (e: Exception) {
+                _state.update { it.copy(error = "No se pudo eliminar la conversación: ${e.message}") }
             }
         }
     }
@@ -139,11 +222,18 @@ class ChatViewModel(
     fun cerrarSala() {
         realtimeJob?.cancel()
         realtimeJob = null
-        _state.update { it.copy(conversacionActiva = null, mensajes = emptyList()) }
+        typingSimulatorJob?.cancel()
+        typingSimulatorJob = null
+        _state.update { it.copy(conversacionActiva = null, mensajes = emptyList(), tiendaContraparte = null, contraparteEscribiendo = false) }
+    }
+
+    fun limpiarMensajes() {
+        _state.update { it.copy(error = null, exito = null) }
     }
 
     override fun onCleared() {
         super.onCleared()
         realtimeJob?.cancel()
+        typingSimulatorJob?.cancel()
     }
 }

@@ -26,6 +26,7 @@ import coil3.compose.AsyncImage
 import com.unp.emprendepiura.core.ui.EmptyStateBox
 import com.unp.emprendepiura.core.ui.ProductThumbnail
 import com.unp.emprendepiura.core.ui.StatusPillBadge
+import com.unp.emprendepiura.core.util.CodigoEntregaUtil
 import com.unp.emprendepiura.core.util.PiuraConstants
 import com.unp.emprendepiura.domain.model.Categoria
 import com.unp.emprendepiura.domain.model.EstadoOrden
@@ -52,13 +53,15 @@ fun MiTiendaScreen(
         onDone: () -> Unit
     ) -> Unit,
     onToggleEstadoProducto: (Producto) -> Unit,
-    onAvanzarOrden: (Orden, EstadoOrden) -> Unit
+    onAvanzarOrden: (Orden, EstadoOrden) -> Unit,
+    onConfirmarEntregaConPin: ((Orden, String) -> Unit)? = null
 ) {
     val tienda = storeState.miTienda ?: return
     var subTab by remember { mutableIntStateOf(0) }
     var editorAbierto by remember { mutableStateOf(false) }
     var productoEnEdicion by remember { mutableStateOf<Producto?>(null) }
     var comprobanteVerUrl by remember { mutableStateOf<String?>(null) }
+    var ordenParaPinEntrega by remember { mutableStateOf<Orden?>(null) }
 
     Scaffold(
         topBar = {
@@ -229,8 +232,14 @@ fun MiTiendaScreen(
                                                 }
                                             }
                                             EstadoOrden.EN_CAMINO -> {
-                                                Button(onClick = { onAvanzarOrden(orden, EstadoOrden.ENTREGADO) }, modifier = Modifier.fillMaxWidth()) {
-                                                    Text("Marcar Entregado", fontSize = 12.5.sp)
+                                                Button(
+                                                    onClick = { ordenParaPinEntrega = orden },
+                                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF15803D)),
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    Icon(Icons.Default.Lock, null, modifier = Modifier.size(16.dp))
+                                                    Spacer(Modifier.width(6.dp))
+                                                    Text("Validar Entrega con PIN", fontSize = 12.5.sp)
                                                 }
                                             }
                                             else -> Unit
@@ -280,5 +289,84 @@ fun MiTiendaScreen(
                 }
             }
         }
+    }
+
+    // Modal de confirmación de entrega con código PIN (antifraude estilo Uber Eats)
+    if (ordenParaPinEntrega != null) {
+        val orden = ordenParaPinEntrega!!
+        var pinIngresado by remember { mutableStateOf("") }
+        var errorPin by remember { mutableStateOf<String?>(null) }
+
+        AlertDialog(
+            onDismissRequest = { ordenParaPinEntrega = null },
+            icon = {
+                Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(34.dp)
+                )
+            },
+            title = {
+                Text(
+                    text = "Código de Entrega Segura",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Para validar la entrega de ${orden.codigoOrden} y evitar fraudes, solicita al comprador el código PIN de 4 dígitos que figura en su aplicación:",
+                        fontSize = 13.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    OutlinedTextField(
+                        value = pinIngresado,
+                        onValueChange = {
+                            if (it.length <= 4 && it.all { c -> c.isDigit() }) {
+                                pinIngresado = it
+                                errorPin = null
+                            }
+                        },
+                        placeholder = { Text("Ej: 4829") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        ),
+                        singleLine = true,
+                        isError = errorPin != null,
+                        supportingText = errorPin?.let { err -> { Text(err, color = MaterialTheme.colorScheme.error) } },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (CodigoEntregaUtil.validarCodigoEntrega(orden.id, orden.codigoOrden, pinIngresado)) {
+                            val pin = pinIngresado
+                            ordenParaPinEntrega = null
+                            if (onConfirmarEntregaConPin != null) {
+                                onConfirmarEntregaConPin(orden, pin)
+                            } else {
+                                onAvanzarOrden(orden, EstadoOrden.ENTREGADO)
+                            }
+                        } else {
+                            errorPin = "Código incorrecto. Solicita al comprador el PIN en 'Mis Pedidos'."
+                        }
+                    },
+                    enabled = pinIngresado.length == 4,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF15803D))
+                ) {
+                    Text("Confirmar Entrega")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { ordenParaPinEntrega = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
     }
 }

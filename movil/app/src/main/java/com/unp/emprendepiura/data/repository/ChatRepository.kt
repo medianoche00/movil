@@ -105,6 +105,20 @@ class ChatRepository {
             .toDomain()
     }
 
+    /**
+     * Elimina una conversacion y sus mensajes asociados tanto en Supabase como localmente.
+     */
+    suspend fun eliminarConversacion(conversacionId: String) {
+        runCatching {
+            SupaClient.client.from("mensajes").delete {
+                filter { eq("conversacion_id", conversacionId) }
+            }
+        }
+        SupaClient.client.from("conversaciones").delete {
+            filter { eq("id", conversacionId) }
+        }
+    }
+
     /** Observa mensajes nuevos insertados en la conversacion en tiempo real. */
     fun observarMensajesRealtime(conversacionId: String): Flow<Mensaje> = callbackFlow {
         val channelName = "chat_${conversacionId.take(12)}_${System.currentTimeMillis()}"

@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.unp.emprendepiura.core.util.CodigoEntregaUtil
 import com.unp.emprendepiura.core.util.UriBytesUtil
 import com.unp.emprendepiura.data.repository.CatalogRepository
 import com.unp.emprendepiura.data.repository.OrderRepository
@@ -157,6 +158,74 @@ class OrdersViewModel(
                 _state.update { it.copy(loading = false, exito = "Estado actualizado a ${nuevoEstado.etiqueta}.") }
             } catch (e: Exception) {
                 _state.update { it.copy(loading = false, error = "No se pudo actualizar el pedido: ${e.message}") }
+            }
+        }
+    }
+
+    /**
+     * Valida el PIN de entrega proporcionado por el comprador (estilo Uber Eats / Rappi)
+     * para confirmar de forma segura que el producto fue entregado en mano sin fraudes.
+     */
+    fun confirmarEntregaConPin(
+        orden: Orden,
+        pinIngresado: String,
+        compradorIdRefresh: String? = null,
+        emprendimientoIdRefresh: String? = null,
+        onExito: () -> Unit
+    ) {
+        val valido = CodigoEntregaUtil.validarCodigoEntrega(orden.id, orden.codigoOrden, pinIngresado)
+        if (!valido) {
+            _state.update {
+                it.copy(error = "Código PIN de entrega incorrecto. Pide al comprador el código de 4 dígitos de su pedido.")
+            }
+            return
+        }
+
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true, error = null) }
+            try {
+                withContext(Dispatchers.IO) {
+                    orderRepo.actualizarEstadoOrden(orden.id, EstadoOrden.ENTREGADO)
+                }
+                if (!compradorIdRefresh.isNullOrBlank()) cargarMisOrdenes(compradorIdRefresh)
+                if (!emprendimientoIdRefresh.isNullOrBlank()) cargarOrdenesRecibidas(emprendimientoIdRefresh)
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        exito = "¡Entrega verificada exitosamente con código PIN! Pedido completado."
+                    )
+                }
+                onExito()
+            } catch (e: Exception) {
+                _state.update { it.copy(loading = false, error = "Error al confirmar entrega: ${e.message}") }
+            }
+        }
+    }
+
+    /**
+     * Permite al comprador confirmar que recibio su pedido en mano.
+     */
+    fun confirmarRecepcionComprador(
+        orden: Orden,
+        compradorId: String,
+        onExito: () -> Unit
+    ) {
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true, error = null) }
+            try {
+                withContext(Dispatchers.IO) {
+                    orderRepo.actualizarEstadoOrden(orden.id, EstadoOrden.ENTREGADO)
+                }
+                cargarMisOrdenes(compradorId)
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        exito = "¡Confirmaste la recepción de tu pedido! Gracias por apoyar a los emprendedores UNP."
+                    )
+                }
+                onExito()
+            } catch (e: Exception) {
+                _state.update { it.copy(loading = false, error = "No se pudo confirmar la recepción: ${e.message}") }
             }
         }
     }

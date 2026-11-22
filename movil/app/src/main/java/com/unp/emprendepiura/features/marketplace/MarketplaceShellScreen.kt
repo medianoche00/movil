@@ -187,10 +187,18 @@ fun MarketplaceShellScreen(
                                     } else {
                                         ChatsListScreen(
                                             state = chatState,
+                                            tiendas = catalogState.tiendas,
                                             onRefresh = { chatVm.cargarConversaciones(usuario.id, storeState.miTienda?.id) },
                                             onAbrirConversacion = { conv ->
                                                 chatVm.abrirSala(conv)
                                                 subRoute = MarketSubRoute.SalaChat
+                                            },
+                                            onBloquearConversacion = { chatVm.bloquearConversacion(it) },
+                                            onDesbloquearConversacion = { chatVm.desbloquearConversacion(it) },
+                                            onEliminarConversacion = { id ->
+                                                chatVm.eliminarConversacion(id) {
+                                                    chatVm.cargarConversaciones(usuario.id, storeState.miTienda?.id)
+                                                }
                                             }
                                         )
                                     }
@@ -255,6 +263,11 @@ fun MarketplaceShellScreen(
                                                     compradorIdRefresh = usuario.id
                                                 )
                                                 catalogVm.cargarCatalogo()
+                                            },
+                                            onConfirmarRecepcion = { orden ->
+                                                ordersVm.confirmarRecepcionComprador(orden, usuario.id) {
+                                                    catalogVm.cargarCatalogo()
+                                                }
                                             }
                                         )
                                     }
@@ -316,10 +329,22 @@ fun MarketplaceShellScreen(
                         ChatRoomScreen(
                             conversacion = conv,
                             mensajes = chatState.mensajes,
+                            tiendaContraparte = chatState.tiendaContraparte ?: catalogState.tiendas[conv.emprendimientoId],
                             miUsuarioId = usuario.id,
                             loading = chatState.loadingMensajes,
                             enviando = chatState.enviando,
+                            contraparteEscribiendo = chatState.contraparteEscribiendo,
+                            estaBloqueado = chatState.conversacionesBloqueadas.contains(conv.id),
                             onEnviar = { chatVm.enviarMensaje(usuario.id, it) },
+                            onBloquear = { chatVm.bloquearConversacion(conv.id) },
+                            onDesbloquear = { chatVm.desbloquearConversacion(conv.id) },
+                            onEliminarConversacion = {
+                                chatVm.eliminarConversacion(conv.id) {
+                                    chatVm.cerrarSala()
+                                    chatVm.cargarConversaciones(usuario.id, storeState.miTienda?.id)
+                                    subRoute = MarketSubRoute.Tabs
+                                }
+                            },
                             onVolver = {
                                 chatVm.cerrarSala()
                                 chatVm.cargarConversaciones(usuario.id, storeState.miTienda?.id)
@@ -373,6 +398,12 @@ fun MarketplaceShellScreen(
                         val tiendaId = storeState.miTienda?.id
                         ordersVm.cambiarEstadoOrden(orden.id, nuevoEstado, emprendimientoIdRefresh = tiendaId)
                         catalogVm.cargarCatalogo()
+                    },
+                    onConfirmarEntregaConPin = { orden, pin ->
+                        val tiendaId = storeState.miTienda?.id
+                        ordersVm.confirmarEntregaConPin(orden, pin, emprendimientoIdRefresh = tiendaId) {
+                            catalogVm.cargarCatalogo()
+                        }
                     }
                 )
 
