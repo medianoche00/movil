@@ -89,21 +89,23 @@ fun OrdenCompraCard(
             if (!pedidoFinalizado) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     val chatPress = rememberPressInteraction()
                     OutlinedButton(
                         onClick = onChatear,
                         interactionSource = chatPress,
                         shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                         modifier = Modifier
                             .weight(1f)
+                            .height(42.dp)
                             .pressScale(chatPress)
                     ) {
                         Icon(Icons.AutoMirrored.Filled.Chat, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Chatear", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.width(5.dp))
+                        Text("Chatear", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
                     }
 
                     if (orden.estado == EstadoOrden.EN_CAMINO) {
@@ -113,14 +115,22 @@ fun OrdenCompraCard(
                             interactionSource = confirmPress,
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF15803D)),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                             modifier = Modifier
                                 .weight(1.35f)
+                                .height(42.dp)
                                 .pressScale(confirmPress)
                         ) {
-                            Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("Confirmar Pedido", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(5.dp))
+                            Text(
+                                text = "Confirmar Pedido",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         }
                     }
 
@@ -132,12 +142,13 @@ fun OrdenCompraCard(
                             shape = RoundedCornerShape(12.dp),
                             border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.5f)),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                             modifier = Modifier
                                 .weight(1f)
+                                .height(42.dp)
                                 .pressScale(cancelPress)
                         ) {
-                            Text("Cancelar", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Cancelar", fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
                         }
                     }
                 }
@@ -221,21 +232,23 @@ fun OrdenVentaCard(
             } else if (!pedidoFinalizado) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     val chatPress = rememberPressInteraction()
                     OutlinedButton(
                         onClick = onChatearComprador,
                         interactionSource = chatPress,
                         shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                         modifier = Modifier
                             .weight(0.95f)
+                            .height(42.dp)
                             .pressScale(chatPress)
                     ) {
                         Icon(Icons.AutoMirrored.Filled.Chat, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Chatear", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.width(5.dp))
+                        Text("Chatear", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
                     }
 
                     val actionPress = rememberPressInteraction()
@@ -245,12 +258,20 @@ fun OrdenVentaCard(
                                 onClick = { onAvanzarEstado(EstadoOrden.CONFIRMADO) },
                                 interactionSource = actionPress,
                                 shape = RoundedCornerShape(12.dp),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                 modifier = Modifier
                                     .weight(1.35f)
+                                    .height(42.dp)
                                     .pressScale(actionPress)
                             ) {
-                                Text("Confirmar Pedido", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text(
+                                    text = "Confirmar Pedido",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
                         EstadoOrden.CONFIRMADO -> {
@@ -259,12 +280,20 @@ fun OrdenVentaCard(
                                 interactionSource = actionPress,
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488)),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                 modifier = Modifier
                                     .weight(1.35f)
+                                    .height(42.dp)
                                     .pressScale(actionPress)
                             ) {
-                                Text("Marcar En Camino", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text(
+                                    text = "Marcar En Camino",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
                         EstadoOrden.EN_CAMINO -> {
@@ -273,14 +302,22 @@ fun OrdenVentaCard(
                                 interactionSource = actionPress,
                                 shape = RoundedCornerShape(12.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF15803D)),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 9.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                                 modifier = Modifier
-                                    .weight(1.45f)
+                                    .weight(1.4f)
+                                    .height(42.dp)
                                     .pressScale(actionPress)
                             ) {
                                 Icon(Icons.Default.Lock, null, modifier = Modifier.size(15.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("Validar PIN (6 dígitos)", fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+                                Spacer(Modifier.width(5.dp))
+                                Text(
+                                    text = "Validar PIN",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
                         else -> Unit

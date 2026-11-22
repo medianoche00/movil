@@ -1,5 +1,6 @@
 package com.unp.emprendepiura.data.repository
 
+import com.unp.emprendepiura.core.network.RealtimeChannelHelper
 import com.unp.emprendepiura.core.network.SupaClient
 import com.unp.emprendepiura.data.dto.OrdenDto
 import com.unp.emprendepiura.data.dto.OrdenItemDto
@@ -8,11 +9,23 @@ import com.unp.emprendepiura.domain.model.CartItemLocal
 import com.unp.emprendepiura.domain.model.EstadoOrden
 import com.unp.emprendepiura.domain.model.MetodoPago
 import com.unp.emprendepiura.domain.model.Orden
+import com.unp.emprendepiura.domain.model.OrdenRealtimeEvent
 import com.unp.emprendepiura.domain.model.TipoEntrega
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
+import io.github.jan.supabase.realtime.PostgresAction
+import io.github.jan.supabase.realtime.channel
+import io.github.jan.supabase.realtime.decodeRecordOrNull
+import io.github.jan.supabase.realtime.postgresChangeFlow
 import io.github.jan.supabase.storage.storage
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -21,7 +34,8 @@ import kotlinx.serialization.json.put
 /*
  * Archivo: OrderRepository.kt
  * Proposito: Creacion atomica de ordenes mediante RPC con descuento de stock, subida de
- *            comprobantes Yape/Plin y seguimiento de pedidos para comprador y emprendedor.
+ *            comprobantes Yape/Plin, seguimiento de pedidos y suscripcion Realtime WSS
+ *            para reflejar nuevos pedidos y cambios de estado al instante entre dispositivos.
  */
 class OrderRepository {
 
@@ -101,6 +115,62 @@ class OrderRepository {
                 put("p_nuevo_estado", nuevoEstado.name)
             }
         )
+    }
+
+    /**
+     * Observa inserciones y actualizaciones de ordenes en tiempo real para comprador
+     * y/o emprendedor (cuando llega un pedido nuevo o cambia su estado).
+     */
+    fun observarOrdenesRealtime(
+        compradorId: String,
+        miEmprendimientoId: String?
+    ): Flow<OrdenRealtimeEvent> = callbackFlow {
+        val channelId = RealtimeChannelHelper.uniqueChannelId("emprende_orders_${compradorId.take(10)}")
+        val channel = SupaClient.client.channel(channelId)
+
+        val ordersJob = launch(start = CoroutineStart.UNDISPATCHED) {
+            channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+                table = "ordenes"
+            }.collect { action ->
+                when (action) {
+                    is PostgresAction.Insert -> {
+                        action.decodeRecordOrNull<OrdenDto>()?.let { dto ->
+                            val relevante = dto.compradorId == compradorId ||
+                                (!miEmprendimientoId.isNullOrBlank() && dto.emprendimientoId == miEmprendimientoId)
+                            if (relevante) {
+                                trySend(OrdenRealtimeEvent.NuevaOrden(dto.toDomain()))
+                            }
+                        }
+                    }
+                    is PostgresAction.Update -> {
+                        action.decodeRecordOrNull<OrdenDto>()?.let { dto ->
+                            val relevante = dto.compradorId == compradorId ||
+                                (!miEmprendimientoId.isNullOrBlank() && dto.emprendimientoId == miEmprendimientoId)
+                            if (relevante) {
+                                trySend(OrdenRealtimeEvent.OrdenActualizada(dto.toDomain()))
+                            }
+                        }
+                    }
+                    else -> Unit
+                }
+            }
+        }
+
+        val subJob = launch {
+            RealtimeChannelHelper.suscribirConReintentos(channel) { esReconexion ->
+                if (esReconexion) {
+                    trySend(OrdenRealtimeEvent.Reconectado)
+                }
+            }
+        }
+
+        awaitClose {
+            subJob.cancel()
+            ordersJob.cancel()
+            CoroutineScope(Dispatchers.IO).launch {
+                RealtimeChannelHelper.removerCanalSiCoincide(channel)
+            }
+        }
     }
 
     private suspend fun hidratarItems(ordenes: List<OrdenDto>): List<Orden> {

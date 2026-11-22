@@ -15,6 +15,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.zIndex
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -28,11 +29,11 @@ import com.unp.emprendepiura.core.theme.applePushExit
 import com.unp.emprendepiura.core.theme.applePushSpring
 import com.unp.emprendepiura.features.auth.ui.BiometricAuthScreen
 import com.unp.emprendepiura.features.auth.ui.BiometricViewModel
-import com.unp.emprendepiura.features.auth.ui.BiometricVista
 import com.unp.emprendepiura.features.auth.ui.components.FingerprintAuthModal
 import com.unp.emprendepiura.features.auth.ui.components.LiveFaceScannerModal
 import com.unp.emprendepiura.features.auth.ui.components.SwipeableFeedbackBanner
 import com.unp.emprendepiura.features.marketplace.MarketplaceShellScreen
+import com.unp.emprendepiura.features.splash.SplashModo
 import com.unp.emprendepiura.features.splash.SplashScreen
 
 private const val ROUTE_SPLASH = "splash"
@@ -51,6 +52,7 @@ fun AppNav(
 
     var abrirFacialModoRegistro by remember { mutableStateOf(false) }
     var authInicioEnRegistro by rememberSaveable { mutableStateOf(false) }
+    var splashTransicion by remember { mutableStateOf<SplashModo?>(null) }
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -106,6 +108,7 @@ fun AppNav(
         ) {
             composable(ROUTE_SPLASH) {
                 SplashScreen(
+                    modo = SplashModo.Arranque,
                     onFinished = {
                         nav.navigate(ROUTE_MARKETPLACE) {
                             popUpTo(ROUTE_SPLASH) { inclusive = true }
@@ -121,7 +124,14 @@ fun AppNav(
                     onToggleTheme = onToggleTheme,
                     volverDirectoDesdeRegistro = authInicioEnRegistro,
                     onSolicitarCamaraFacial = ::abrirEscanerFacialConPermiso,
-                    onEntrarAlMarketplace = ::salirDeAuthHaciaMarketplace,
+                    onEntrarAlMarketplace = { esNuevoInicioSesion ->
+                        if (esNuevoInicioSesion) {
+                            val nombre = authState.usuarioAutenticado?.nombre.orEmpty()
+                            splashTransicion = SplashModo.IniciandoSesion(nombre)
+                        } else {
+                            salirDeAuthHaciaMarketplace()
+                        }
+                    },
                     onVolverAlMarketplace = {
                         biometricVm.limpiarFormulariosAuth(context)
                         salirDeAuthHaciaMarketplace()
@@ -163,7 +173,10 @@ fun AppNav(
                     },
                     onRefrescarUsuario = { biometricVm.refrescarUsuarioAutenticado(context) },
                     onCerrarSesion = {
-                        biometricVm.cerrarSesion()
+                        if (splashTransicion == null) {
+                            biometricVm.clearMessages()
+                            splashTransicion = SplashModo.CerrandoSesion
+                        }
                     }
                 )
             }
@@ -193,9 +206,30 @@ fun AppNav(
 
         SwipeableFeedbackBanner(
             errorMessage = authState.errorMessage,
-            successMessage = authState.successMessage,
+            successMessage = if (authState.errorMessage != null) null else authState.successMessage,
             onClearMessages = biometricVm::clearMessages,
             modifier = Modifier.align(Alignment.TopCenter)
         )
+
+        // Overlay Splash dedicado para transiciones de Inicio y Cierre de Sesion
+        splashTransicion?.let { modoActual ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .zIndex(200f)
+            ) {
+                SplashScreen(
+                    modo = modoActual,
+                    onMidpointAction = {
+                        when (modoActual) {
+                            is SplashModo.IniciandoSesion -> salirDeAuthHaciaMarketplace()
+                            SplashModo.CerrandoSesion -> biometricVm.cerrarSesion(mostrarBanner = false)
+                            SplashModo.Arranque -> Unit
+                        }
+                    },
+                    onFinished = { splashTransicion = null }
+                )
+            }
+        }
     }
 }

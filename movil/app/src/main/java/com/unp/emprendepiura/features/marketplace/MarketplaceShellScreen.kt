@@ -20,6 +20,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.unp.emprendepiura.core.theme.appleBouncySpring
 import com.unp.emprendepiura.core.theme.appleSubRouteTransition
@@ -28,6 +31,7 @@ import com.unp.emprendepiura.domain.model.Conversacion
 import com.unp.emprendepiura.domain.model.EstadoEmprendimiento
 import com.unp.emprendepiura.domain.model.EstadoOrden
 import com.unp.emprendepiura.domain.model.Producto
+import com.unp.emprendepiura.domain.model.RolUsuario
 import com.unp.emprendepiura.domain.model.Usuario
 import com.unp.emprendepiura.features.admin.AdminPanelScreen
 import com.unp.emprendepiura.features.admin.AdminViewModel
@@ -102,31 +106,70 @@ fun MarketplaceShellScreen(
     var subRoute by remember { mutableStateOf<MarketSubRoute>(MarketSubRoute.Tabs) }
     var pedidosSubTab by remember { mutableStateOf(PedidosSubTab.MIS_COMPRAS) }
 
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> chatVm.actualizarAppEnPrimerPlano(true)
+                Lifecycle.Event.ON_PAUSE -> chatVm.actualizarAppEnPrimerPlano(false)
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     val tiendaAprobada = remember(usuario?.id, storeState.miTienda) {
         if (usuario == null) null
         else storeState.miTienda?.takeIf { it.estado == EstadoEmprendimiento.APROBADO }
     }
 
+    val tiendasBloqueadasComprador = remember(
+        usuario?.id,
+        chatState.conversaciones,
+        chatState.conversacionActiva
+    ) {
+        chatState.tiendasBloqueadasParaComprador(usuario?.id.orEmpty())
+    }
+
+    LaunchedEffect(tiendasBloqueadasComprador) {
+        catalogVm.actualizarTiendasBloqueadas(tiendasBloqueadasComprador)
+    }
+
     LaunchedEffect(usuario?.id) {
         if (usuario != null && usuario.id.isNotBlank()) {
-            storeVm.cargarMiTienda(usuario.id)
-            ordersVm.cargarMisOrdenes(usuario.id)
+            storeVm.iniciarObservacionMiTienda(usuario.id) {
+                onRefrescarUsuario()
+            }
         } else {
+            storeVm.limpiarEstadoSesion()
+            adminVm.detenerObservacionAdmin()
+            chatVm.detenerObservacionYSesion()
             ordersVm.limpiarEstadoSesion()
+            catalogVm.actualizarTiendasBloqueadas(emptySet())
             pedidosSubTab = PedidosSubTab.MIS_COMPRAS
+            subRoute = MarketSubRoute.Tabs
+            currentTab = MarketTab.EXPLORAR
         }
     }
 
-    LaunchedEffect(usuario?.id, storeState.miTienda?.id) {
+    LaunchedEffect(tiendaAprobada?.id) {
+        if (tiendaAprobada != null) {
+            pedidosSubTab = PedidosSubTab.POR_ENTREGAR
+        }
+    }
+
+    LaunchedEffect(usuario?.id, storeState.miTienda?.id, tiendaAprobada?.id) {
         if (usuario != null && usuario.id.isNotBlank()) {
             val tiendaId = storeState.miTienda?.id
-            chatVm.iniciarObservacionBandeja(usuario.id, tiendaId)
-            if (tiendaId != null && storeState.miTienda?.estado == EstadoEmprendimiento.APROBADO) {
-                ordersVm.cargarOrdenesRecibidas(tiendaId)
-                pedidosSubTab = PedidosSubTab.POR_ENTREGAR
+            chatVm.iniciarObservacionBandeja(context, usuario.id, tiendaId)
+            ordersVm.iniciarObservacionOrdenesRealtime(
+                context = context,
+                compradorId = usuario.id,
+                miEmprendimientoId = tiendaAprobada?.id
+            ) {
+                catalogVm.cargarCatalogo(silencioso = true)
             }
-        } else {
-            chatVm.detenerObservacionYSesion()
         }
     }
 
@@ -144,6 +187,10 @@ fun MarketplaceShellScreen(
             is MarketSubRoute.PerfilContactoChat -> subRoute = current.volverA
             MarketSubRoute.SalaChat -> {
                 chatVm.cerrarSala(usuario?.id)
+                subRoute = MarketSubRoute.Tabs
+            }
+            MarketSubRoute.PanelAdmin -> {
+                adminVm.detenerObservacionAdmin()
                 subRoute = MarketSubRoute.Tabs
             }
             else -> subRoute = MarketSubRoute.Tabs
@@ -252,7 +299,7 @@ fun MarketplaceShellScreen(
                                     onQueryChange = catalogVm::onQueryChange,
                                     onSelectCategoria = catalogVm::onSelectCategoria,
                                     onSelectZona = catalogVm::onSelectZona,
-                                    onRefresh = catalogVm::cargarCatalogo,
+                                    onRefresh = { catalogVm.cargarCatalogo() },
                                     onAbrirProducto = { prod -> subRoute = MarketSubRoute.DetalleProducto(prod) }
                                 )
 
@@ -416,7 +463,7 @@ fun MarketplaceShellScreen(
                                     },
                                     onSolicitarTienda = { subRoute = MarketSubRoute.SolicitarTienda },
                                     onAbrirPanelAdmin = {
-                                        adminVm.cargarTodo()
+                                        adminVm.iniciarObservacionAdmin()
                                         subRoute = MarketSubRoute.PanelAdmin
                                     },
                                     onEditarDatosPerfil = onEditarPerfilBiometria,
@@ -432,12 +479,14 @@ fun MarketplaceShellScreen(
                 }
 
                 is MarketSubRoute.DetalleProducto -> {
-                    val p = route.producto
+                    val p = catalogState.productos.firstOrNull { it.id == route.producto.id } ?: route.producto
                     val tiendaProd = catalogState.tiendas[p.emprendimientoId]
+                    val tiendaBloqueada = p.emprendimientoId in tiendasBloqueadasComprador
                     ProductoDetalleScreen(
                         producto = p,
                         tienda = tiendaProd,
                         esPropioProducto = usuario != null && storeState.miTienda?.id == p.emprendimientoId,
+                        tiendaBloqueada = tiendaBloqueada,
                         onVolver = { subRoute = MarketSubRoute.Tabs },
                         onAgregarCarrito = { catalogVm.agregarAlCarrito(it) },
                         onIrAlCarrito = {
@@ -480,6 +529,8 @@ fun MarketplaceShellScreen(
                             darkTheme = darkTheme,
                             loading = chatState.loadingMensajes,
                             enviando = chatState.enviando,
+                            enviandoAdjunto = chatState.enviandoAdjunto,
+                            etiquetaAdjuntoEnProgreso = chatState.etiquetaAdjuntoEnProgreso,
                             contraparteEnLinea = chatState.contraparteEnLinea,
                             contraparteEscribiendo = chatState.contraparteEscribiendo,
                             onNotificarEscritura = { escribiendo ->
@@ -495,7 +546,31 @@ fun MarketplaceShellScreen(
                                     volverA = MarketSubRoute.SalaChat
                                 )
                             },
-                            onEnviar = { chatVm.enviarMensaje(usuario.id, it) },
+                            onEnviarTexto = { textoMsg, reply ->
+                                chatVm.enviarMensaje(usuario.id, textoMsg, reply)
+                            },
+                            onEnviarImagen = { uri, reply ->
+                                chatVm.enviarImagenAdjunta(context, usuario.id, uri, reply)
+                            },
+                            onEnviarAudio = { bytes, dur, reply ->
+                                chatVm.enviarAudioAdjunto(usuario.id, bytes, dur, reply)
+                            },
+                            onEnviarDocumento = { uri, reply ->
+                                chatVm.enviarDocumentoAdjunto(context, usuario.id, uri, reply)
+                            },
+                            onEnviarUbicacion = { reply ->
+                                chatVm.enviarUbicacionAdjunta(context, usuario.id, reply)
+                            },
+                            onEnviarContacto = { nom, tel, reply ->
+                                chatVm.enviarContactoAdjunto(usuario.id, nom, tel, reply)
+                            },
+                            onEliminarMensajeParaMi = { msg ->
+                                chatVm.eliminarMensajeParaMi(msg, usuario.id)
+                            },
+                            onEliminarMensajeParaTodos = { msg ->
+                                chatVm.eliminarMensajeParaTodos(msg, usuario.id)
+                            },
+                            onMostrarAviso = chatVm::mostrarAvisoChat,
                             onBloquear = { chatVm.bloquearConversacion(conv.id, usuario.id) },
                             onDesbloquear = { chatVm.desbloquearConversacion(conv.id, usuario.id) },
                             onEliminarConversacion = {
@@ -519,11 +594,19 @@ fun MarketplaceShellScreen(
                         chatState.conversacionActiva?.takeIf { it.id == c.id }
                             ?: chatState.conversaciones.firstOrNull { it.id == c.id }
                             ?: c
-                    }
+                    } ?: if (usuario != null && route.tiendaId != null) {
+                        chatState.conversaciones.firstOrNull {
+                            it.compradorId == usuario.id && it.emprendimientoId == route.tiendaId
+                        }
+                    } else null
                     val objetivo: PerfilChatObjetivo = if (route.tiendaId != null) {
                         val tienda = chatState.tiendaContraparte?.takeIf { it.id == route.tiendaId }
                             ?: catalogState.tiendas[route.tiendaId]
-                        val prods = catalogState.productos.filter { it.emprendimientoId == route.tiendaId }
+                        val prods = if (convFresca?.estaBloqueada == true) {
+                            emptyList()
+                        } else {
+                            catalogState.productos.filter { it.emprendimientoId == route.tiendaId }
+                        }
                         PerfilChatObjetivo.EmprendimientoPerfil(
                             tienda = tienda,
                             nombreFallback = route.nombreFallback,
@@ -589,11 +672,9 @@ fun MarketplaceShellScreen(
                     )
                 }
 
-                MarketSubRoute.SolicitarTienda -> if (usuario != null) {
+                MarketSubRoute.SolicitarTienda -> if (usuario != null && usuario.rol != RolUsuario.ADMIN) {
                     SolicitarTiendaScreen(
                         categorias = catalogState.categorias,
-                        telefonoInicial = usuario.telefono,
-                        zonaInicial = usuario.zonaPiura,
                         saving = storeState.saving,
                         onEnviarSolicitud = { nom, desc, cat, zona, punto, tel, yape ->
                             storeVm.enviarSolicitudTienda(
@@ -639,7 +720,11 @@ fun MarketplaceShellScreen(
 
                 MarketSubRoute.PanelAdmin -> AdminPanelScreen(
                     state = adminState,
-                    onRefresh = adminVm::cargarTodo,
+                    miAdminUsuarioId = usuario?.id.orEmpty(),
+                    onRefresh = { adminVm.cargarTodo() },
+                    onToggleUsuarioActivo = { u ->
+                        adminVm.toggleUsuarioActivo(u, usuario?.id.orEmpty())
+                    },
                     onResolverTienda = { tienda, estado ->
                         adminVm.resolverEmprendimiento(tienda, estado) {
                             catalogVm.cargarCatalogo()
@@ -656,14 +741,17 @@ fun MarketplaceShellScreen(
                     onModerarProducto = { prod ->
                         adminVm.moderarProducto(prod) { catalogVm.cargarCatalogo() }
                     },
-                    onVolver = { subRoute = MarketSubRoute.Tabs }
+                    onVolver = {
+                        adminVm.detenerObservacionAdmin()
+                        subRoute = MarketSubRoute.Tabs
+                    }
                 )
             }
         }
 
         SwipeableFeedbackBanner(
             errorMessage = bannerError,
-            successMessage = bannerExito,
+            successMessage = if (bannerError != null) null else bannerExito,
             onClearMessages = {
                 ordersVm.limpiarMensajes()
                 chatVm.limpiarMensajes()

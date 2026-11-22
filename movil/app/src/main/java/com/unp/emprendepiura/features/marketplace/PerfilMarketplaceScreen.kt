@@ -453,84 +453,149 @@ private fun UsuarioAutenticadoContent(
         }
     }
 
-    Text(
-        text = "EMPRENDIMIENTO Y GESTIÓN",
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
-
-    when (miTienda?.estado) {
-        null -> {
-            PerfilActionCard(
-                icon = Icons.Default.Storefront,
-                tint = Color(0xFF0D9488),
-                titulo = "Quiero vender en EmprendePiura",
-                subtitulo = "Registra tu emprendimiento local para publicar productos",
-                onClick = onSolicitarTienda
-            )
-        }
-        EstadoEmprendimiento.PENDIENTE -> {
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = Color(0xFFD97706).copy(alpha = 0.10f),
-                border = BorderStroke(1.dp, Color(0xFFD97706).copy(alpha = 0.35f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Text("Solicitud en revisión: ${miTienda.nombreTienda}", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text(
-                        text = "Un administrador revisará y aprobará tu tienda pronto.",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-        EstadoEmprendimiento.APROBADO -> {
-            PerfilActionCard(
-                icon = Icons.Default.LocalShipping,
-                tint = MaterialTheme.colorScheme.primary,
-                titulo = if (entregasPendientesCount > 0) {
-                    "Pedidos Por Entregar ($entregasPendientesCount)"
-                } else {
-                    "Pedidos Por Entregar"
-                },
-                subtitulo = "Gestiona entregas y valida PIN dinámico desde Pedidos",
-                onClick = onAbrirPedidosPorEntregar
-            )
-            PerfilActionCard(
-                icon = Icons.Default.Storefront,
-                tint = Color(0xFF15803D),
-                titulo = "Catálogo de Mi Tienda (${miTienda.nombreTienda})",
-                subtitulo = "Publicar, editar o pausar productos y controlar stock",
-                onClick = onAbrirMiTienda
-            )
-        }
-        EstadoEmprendimiento.SUSPENDIDO -> {
-            Surface(
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = "Emprendimiento suspendido: ${miTienda.nombreTienda}",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(14.dp)
-                )
-            }
-        }
-    }
-
     if (usuario.rol == RolUsuario.ADMIN) {
+        Text(
+            text = "ADMINISTRACIÓN",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
         PerfilActionCard(
             icon = Icons.Default.AdminPanelSettings,
             tint = Color(0xFF6366F1),
             titulo = "Panel Administrativo",
-            subtitulo = "Aprobar emprendimientos, categorías, moderación y métricas",
+            subtitulo = "Aprobar o rechazar solicitudes, categorías y moderación",
             onClick = onAbrirPanelAdmin
         )
+    } else {
+        Text(
+            text = "EMPRENDIMIENTO Y GESTIÓN",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        when (miTienda?.estado) {
+            null -> {
+                PerfilActionCard(
+                    icon = Icons.Default.Storefront,
+                    tint = Color(0xFF0D9488),
+                    titulo = "Quiero vender en EmprendePiura",
+                    subtitulo = "Registra tu emprendimiento local para publicar productos",
+                    onClick = onSolicitarTienda
+                )
+            }
+            EstadoEmprendimiento.PENDIENTE -> {
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = Color(0xFFD97706).copy(alpha = 0.10f),
+                    border = BorderStroke(1.dp, Color(0xFFD97706).copy(alpha = 0.35f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Solicitud enviada",
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 14.5.sp
+                            )
+                            StatusPillBadge(texto = "Esperando respuesta", color = Color(0xFFD97706))
+                        }
+                        Text(
+                            text = "${miTienda.nombreTienda} · Tu solicitud fue enviada y está esperando la respuesta del administrador.",
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            EstadoEmprendimiento.APROBADO -> {
+                PerfilActionCard(
+                    icon = Icons.Default.LocalShipping,
+                    tint = MaterialTheme.colorScheme.primary,
+                    titulo = if (entregasPendientesCount > 0) {
+                        "Pedidos Por Entregar ($entregasPendientesCount)"
+                    } else {
+                        "Pedidos Por Entregar"
+                    },
+                    subtitulo = "Gestiona entregas y valida PIN dinámico desde Pedidos",
+                    onClick = onAbrirPedidosPorEntregar
+                )
+                PerfilActionCard(
+                    icon = Icons.Default.Storefront,
+                    tint = Color(0xFF15803D),
+                    titulo = "Catálogo de Mi Tienda (${miTienda.nombreTienda})",
+                    subtitulo = "Publicar, editar o pausar productos y controlar stock",
+                    onClick = onAbrirMiTienda
+                )
+            }
+            EstadoEmprendimiento.SUSPENDIDO -> {
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.30f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Cancel,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Solicitud rechazada: ${miTienda.nombreTienda}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.5.sp
+                                )
+                                Text(
+                                    text = "Tu emprendimiento fue rechazado por administración. Puedes corregir los datos y volver a intentarlo.",
+                                    fontSize = 12.sp,
+                                    lineHeight = 16.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        val retryPress = rememberPressInteraction()
+                        Button(
+                            onClick = onSolicitarTienda,
+                            interactionSource = retryPress,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = Color.White
+                            ),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .pressScale(retryPress)
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(17.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Reintentar solicitud", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     Text(

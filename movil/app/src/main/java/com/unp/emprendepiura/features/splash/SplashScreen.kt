@@ -16,9 +16,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.LocalMall
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -35,8 +37,10 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.unp.emprendepiura.core.theme.AppleNavigationEasing
@@ -44,21 +48,39 @@ import com.unp.emprendepiura.core.ui.EmprendePiuraBrandBadge
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/*
+ * Archivo: SplashScreen.kt
+ * Proposito: Pantalla de bienvenida y transiciones de sesion (Arranque, Iniciando sesion y
+ *            Cerrando sesion) con animaciones estilo Apple y chips perfectamente alineados.
+ */
+sealed interface SplashModo {
+    data object Arranque : SplashModo
+    data class IniciandoSesion(val nombreUsuario: String = "") : SplashModo
+    data object CerrandoSesion : SplashModo
+}
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun SplashScreen(onFinished: () -> Unit) {
+fun SplashScreen(
+    modo: SplashModo = SplashModo.Arranque,
+    onMidpointAction: (() -> Unit)? = null,
+    onFinished: () -> Unit
+) {
     BackHandler(enabled = true) {}
 
-    val logoScale = remember { Animatable(0.55f) }
-    val logoAlpha = remember { Animatable(0f) }
-    val ring1Scale = remember { Animatable(0.75f) }
-    val ring1Alpha = remember { Animatable(0f) }
-    val ring2Scale = remember { Animatable(0.75f) }
-    val ring2Alpha = remember { Animatable(0f) }
-    val textAlpha = remember { Animatable(0f) }
-    val textOffsetY = remember { Animatable(24f) }
-    val pillAlpha = remember { Animatable(0f) }
-    val screenAlpha = remember { Animatable(1f) }
-    val screenScale = remember { Animatable(1f) }
+    val esOverlay = modo != SplashModo.Arranque
+
+    val logoScale = remember(modo) { Animatable(0.58f) }
+    val logoAlpha = remember(modo) { Animatable(0f) }
+    val ring1Scale = remember(modo) { Animatable(0.75f) }
+    val ring1Alpha = remember(modo) { Animatable(0f) }
+    val ring2Scale = remember(modo) { Animatable(0.75f) }
+    val ring2Alpha = remember(modo) { Animatable(0f) }
+    val textAlpha = remember(modo) { Animatable(0f) }
+    val textOffsetY = remember(modo) { Animatable(22f) }
+    val pillAlpha = remember(modo) { Animatable(0f) }
+    val screenAlpha = remember(modo) { Animatable(if (esOverlay) 0f else 1f) }
+    val screenScale = remember(modo) { Animatable(1f) }
 
     val shimmerTransition = rememberInfiniteTransition(label = "splashShimmer")
     val shimmerProgress by shimmerTransition.animateFloat(
@@ -70,17 +92,21 @@ fun SplashScreen(onFinished: () -> Unit) {
         label = "barProgress"
     )
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(modo) {
+        if (esOverlay) {
+            screenAlpha.animateTo(1f, tween(220, easing = AppleNavigationEasing))
+        }
+
         launch {
             logoScale.animateTo(
                 targetValue = 1f,
                 animationSpec = spring(
-                    dampingRatio = 0.68f,
+                    dampingRatio = 0.70f,
                     stiffness = Spring.StiffnessMediumLow
                 )
             )
         }
-        launch { logoAlpha.animateTo(1f, tween(380, easing = AppleNavigationEasing)) }
+        launch { logoAlpha.animateTo(1f, tween(360, easing = AppleNavigationEasing)) }
 
         launch {
             ring1Alpha.animateTo(0.42f, tween(220))
@@ -94,8 +120,8 @@ fun SplashScreen(onFinished: () -> Unit) {
             ring2Alpha.animateTo(0f, tween(450))
         }
 
-        delay(220)
-        launch { textAlpha.animateTo(1f, tween(520, easing = AppleNavigationEasing)) }
+        delay(190)
+        launch { textAlpha.animateTo(1f, tween(480, easing = AppleNavigationEasing)) }
         launch {
             textOffsetY.animateTo(
                 0f,
@@ -103,13 +129,50 @@ fun SplashScreen(onFinished: () -> Unit) {
             )
         }
 
-        delay(170)
-        pillAlpha.animateTo(1f, tween(480, easing = AppleNavigationEasing))
+        delay(160)
+        pillAlpha.animateTo(1f, tween(420, easing = AppleNavigationEasing))
 
-        delay(1150)
-        launch { screenScale.animateTo(1.04f, tween(360, easing = AppleNavigationEasing)) }
-        screenAlpha.animateTo(0f, tween(340, easing = AppleNavigationEasing))
+        // Ejecutar el cambio de sesion/navegacion mientras el Splash cubre por completo la pantalla
+        onMidpointAction?.invoke()
+
+        val duracionLecturaMs = when (modo) {
+            SplashModo.Arranque -> 1150L
+            is SplashModo.IniciandoSesion -> 1500L
+            SplashModo.CerrandoSesion -> 1750L
+        }
+        delay(duracionLecturaMs)
+
+        launch { screenScale.animateTo(1.035f, tween(340, easing = AppleNavigationEasing)) }
+        screenAlpha.animateTo(0f, tween(320, easing = AppleNavigationEasing))
         onFinished()
+    }
+
+    val gradienteFondo = when (modo) {
+        SplashModo.CerrandoSesion -> arrayOf(
+            0.00f to Color(0xFF0F172A),
+            0.48f to Color(0xFF1E3A8A),
+            1.00f to Color(0xFF1D4ED8)
+        )
+        else -> arrayOf(
+            0.00f to Color(0xFF0A2472),
+            0.45f to Color(0xFF1D4ED8),
+            1.00f to Color(0xFF2563EB)
+        )
+    }
+
+    val subtituloPrincipal = when (modo) {
+        SplashModo.Arranque -> "Marketplace de Emprendedores · Piura y UNP"
+        is SplashModo.IniciandoSesion -> {
+            val nombre = modo.nombreUsuario.trim()
+            if (nombre.isNotBlank()) "Bienvenido, $nombre" else "Preparando tu cuenta en EmprendePiura"
+        }
+        SplashModo.CerrandoSesion -> "Desconectando tu cuenta de forma segura"
+    }
+
+    val textoPie = when (modo) {
+        SplashModo.Arranque -> "Impulsando el talento piurano · v1.0"
+        is SplashModo.IniciandoSesion -> "Sincronizando catálogo, chats y pedidos..."
+        SplashModo.CerrandoSesion -> "Sesión cerrada correctamente · Hasta pronto"
     }
 
     Box(
@@ -117,15 +180,7 @@ fun SplashScreen(onFinished: () -> Unit) {
             .fillMaxSize()
             .scale(screenScale.value)
             .alpha(screenAlpha.value)
-            .background(
-                Brush.verticalGradient(
-                    colorStops = arrayOf(
-                        0.00f to Color(0xFF0A2472),
-                        0.45f to Color(0xFF1D4ED8),
-                        1.00f to Color(0xFF2563EB)
-                    )
-                )
-            ),
+            .background(Brush.verticalGradient(colorStops = gradienteFondo)),
         contentAlignment = Alignment.Center
     ) {
         // Resplandor solar piurano y circulos ambientales
@@ -133,8 +188,8 @@ fun SplashScreen(onFinished: () -> Unit) {
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
-                        Color(0xFFF59E0B).copy(alpha = 0.24f),
-                        Color(0xFFF59E0B).copy(alpha = 0.06f),
+                        Color(0xFFF59E0B).copy(alpha = if (modo == SplashModo.CerrandoSesion) 0.16f else 0.24f),
+                        Color(0xFFF59E0B).copy(alpha = 0.05f),
                         Color.Transparent
                     ),
                     center = Offset(size.width * 0.82f, size.height * 0.14f),
@@ -158,7 +213,9 @@ fun SplashScreen(onFinished: () -> Unit) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(horizontal = 28.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
         ) {
             Box(
                 contentAlignment = Alignment.Center,
@@ -200,7 +257,7 @@ fun SplashScreen(onFinished: () -> Unit) {
                 )
             }
 
-            Spacer(Modifier.height(26.dp))
+            Spacer(Modifier.height(24.dp))
 
             Column(
                 modifier = Modifier
@@ -211,7 +268,7 @@ fun SplashScreen(onFinished: () -> Unit) {
                 Text(
                     text = "EmprendePiura",
                     color = Color.White,
-                    fontSize = 35.sp,
+                    fontSize = 34.sp,
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 0.4.sp
                 )
@@ -219,37 +276,72 @@ fun SplashScreen(onFinished: () -> Unit) {
                 Spacer(Modifier.height(6.dp))
 
                 Text(
-                    text = "Marketplace de Emprendedores · Piura y UNP",
+                    text = subtituloPrincipal,
                     color = Color.White.copy(alpha = 0.90f),
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                     letterSpacing = 0.2.sp,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 12.dp)
                 )
             }
 
             Spacer(Modifier.height(22.dp))
 
-            Row(
-                modifier = Modifier.alpha(pillAlpha.value),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                SplashHighlightChip(
-                    icon = Icons.Default.Storefront,
-                    label = "Tiendas Locales",
-                    tint = Color(0xFFFBBF24)
-                )
-                SplashHighlightChip(
-                    icon = Icons.Default.LocalMall,
-                    label = "Catálogo UNP",
-                    tint = Color.White
-                )
-                SplashHighlightChip(
-                    icon = Icons.Default.LocationOn,
-                    label = "Piura",
-                    tint = Color(0xFFFBBF24)
-                )
+            when (modo) {
+                SplashModo.Arranque -> {
+                    FlowRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .alpha(pillAlpha.value),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        SplashHighlightChip(
+                            icon = Icons.Default.Storefront,
+                            label = "Tiendas Locales",
+                            tint = Color(0xFFFBBF24)
+                        )
+                        SplashHighlightChip(
+                            icon = Icons.Default.LocalMall,
+                            label = "Catálogo UNP",
+                            tint = Color.White
+                        )
+                        SplashHighlightChip(
+                            icon = Icons.Default.LocationOn,
+                            label = "Piura",
+                            tint = Color(0xFFFBBF24)
+                        )
+                    }
+                }
+
+                is SplashModo.IniciandoSesion -> {
+                    Box(modifier = Modifier.alpha(pillAlpha.value)) {
+                        SplashHighlightChip(
+                            icon = Icons.Default.VerifiedUser,
+                            label = "Iniciando sesión...",
+                            tint = Color(0xFF4ADE80),
+                            horizontalPadding = 16.dp,
+                            verticalPadding = 8.dp,
+                            fontSizeSp = 13f
+                        )
+                    }
+                }
+
+                SplashModo.CerrandoSesion -> {
+                    Box(modifier = Modifier.alpha(pillAlpha.value)) {
+                        SplashHighlightChip(
+                            icon = Icons.AutoMirrored.Filled.ExitToApp,
+                            label = "Cerrando sesión...",
+                            tint = Color(0xFFFBBF24),
+                            horizontalPadding = 16.dp,
+                            verticalPadding = 8.dp,
+                            fontSizeSp = 13f
+                        )
+                    }
+                }
             }
         }
 
@@ -262,10 +354,9 @@ fun SplashScreen(onFinished: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Indicador de carga suave estilo Apple
             Box(
                 modifier = Modifier
-                    .width(92.dp)
+                    .width(96.dp)
                     .height(4.dp)
                     .clip(RoundedCornerShape(50))
                     .background(Color.White.copy(alpha = 0.22f))
@@ -289,10 +380,11 @@ fun SplashScreen(onFinished: () -> Unit) {
             }
 
             Text(
-                text = "Impulsando el talento piurano · v1.0",
-                color = Color.White.copy(alpha = 0.65f),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium
+                text = textoPie,
+                color = Color.White.copy(alpha = 0.72f),
+                fontSize = 11.5.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center
             )
         }
     }
@@ -300,9 +392,12 @@ fun SplashScreen(onFinished: () -> Unit) {
 
 @Composable
 private fun SplashHighlightChip(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    icon: ImageVector,
     label: String,
-    tint: Color
+    tint: Color,
+    horizontalPadding: androidx.compose.ui.unit.Dp = 11.dp,
+    verticalPadding: androidx.compose.ui.unit.Dp = 6.dp,
+    fontSizeSp: Float = 11.5f
 ) {
     Surface(
         shape = RoundedCornerShape(50),
@@ -310,9 +405,9 @@ private fun SplashHighlightChip(
         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.24f))
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = horizontalPadding, vertical = verticalPadding),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(5.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Icon(
                 imageVector = icon,
@@ -322,9 +417,12 @@ private fun SplashHighlightChip(
             )
             Text(
                 text = label,
-                fontSize = 11.5.sp,
+                fontSize = fontSizeSp.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White
+                color = Color.White,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Clip
             )
         }
     }

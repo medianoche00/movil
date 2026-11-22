@@ -82,6 +82,7 @@ fun PerfilContactoChatScreen(
 
     val estaBloqueada = conversacion?.estaBloqueada == true
     val bloqueadaPorMi = conversacion?.bloqueadaPorMi(miUsuarioId) == true
+    val contactoNoDisponible = estaBloqueada && !bloqueadaPorMi
 
     val tituloNombre = when (objetivo) {
         is PerfilChatObjetivo.EmprendimientoPerfil -> objetivo.tienda?.nombreTienda ?: objetivo.nombreFallback
@@ -236,53 +237,57 @@ fun PerfilContactoChatScreen(
 
                 Spacer(Modifier.height(4.dp))
 
-                // Fila de 3 acciones rapidas estilo Contacto iOS
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    QuickContactActionTile(
-                        icon = Icons.AutoMirrored.Filled.Chat,
-                        tint = palette.accentPrimary,
-                        label = "Mensaje",
-                        palette = palette,
-                        onClick = onIrAlChat,
-                        modifier = Modifier.weight(1f)
-                    )
-                    QuickContactActionTile(
-                        icon = Icons.Default.Phone,
-                        tint = palette.onlineDot,
-                        label = "Teléfono",
-                        palette = palette,
-                        enabled = telefono.isNotBlank(),
-                        onClick = { copiar("Teléfono", telefono) },
-                        modifier = Modifier.weight(1f)
-                    )
-                    when (objetivo) {
-                        is PerfilChatObjetivo.EmprendimientoPerfil -> {
-                            val yape = objetivo.tienda?.numeroYapePlin.orEmpty()
-                            QuickContactActionTile(
-                                icon = Icons.Default.Payments,
-                                tint = palette.accentWarmGold,
-                                label = "Yape/Plin",
-                                palette = palette,
-                                enabled = yape.isNotBlank(),
-                                onClick = { copiar("Yape/Plin", yape) },
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                        is PerfilChatObjetivo.CompradorPerfil -> {
-                            QuickContactActionTile(
-                                icon = Icons.Default.CheckCircle,
-                                tint = Color(0xFF15803D),
-                                label = "${objetivo.entregasConTienda} entregas",
-                                palette = palette,
-                                enabled = false,
-                                onClick = {},
-                                modifier = Modifier.weight(1f)
-                            )
+                // Fila de acciones rapidas estilo Contacto iOS (oculta si el contacto no esta disponible)
+                if (!contactoNoDisponible) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        QuickContactActionTile(
+                            icon = Icons.AutoMirrored.Filled.Chat,
+                            tint = palette.accentPrimary,
+                            label = "Mensaje",
+                            palette = palette,
+                            onClick = onIrAlChat,
+                            modifier = Modifier.weight(1f)
+                        )
+                        QuickContactActionTile(
+                            icon = Icons.Default.Phone,
+                            tint = palette.onlineDot,
+                            label = "Teléfono",
+                            palette = palette,
+                            enabled = telefono.isNotBlank() && !estaBloqueada,
+                            onClick = { copiar("Teléfono", telefono) },
+                            modifier = Modifier.weight(1f)
+                        )
+                        when (objetivo) {
+                            is PerfilChatObjetivo.EmprendimientoPerfil -> {
+                                val yape = objetivo.tienda?.numeroYapePlin.orEmpty()
+                                QuickContactActionTile(
+                                    icon = Icons.Default.Payments,
+                                    tint = palette.accentWarmGold,
+                                    label = "Yape/Plin",
+                                    palette = palette,
+                                    enabled = yape.isNotBlank() && !estaBloqueada,
+                                    onClick = { copiar("Yape/Plin", yape) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            is PerfilChatObjetivo.CompradorPerfil -> {
+                                QuickContactActionTile(
+                                    icon = Icons.Default.CheckCircle,
+                                    tint = Color(0xFF15803D),
+                                    label = "${objetivo.entregasConTienda} entregas",
+                                    palette = palette,
+                                    enabled = false,
+                                    onClick = {},
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
                         }
                     }
+                } else {
+                    StatusPillBadge(texto = "No disponible en este momento", color = palette.incomingMeta)
                 }
             }
 
@@ -325,7 +330,7 @@ fun PerfilContactoChatScreen(
                                     valor = tienda?.puntoEncuentroHabitual?.ifBlank { "Campus Universitario UNP" }
                                         ?: "Campus Universitario UNP"
                                 )
-                                if (telefono.isNotBlank()) {
+                                if (!estaBloqueada && telefono.isNotBlank()) {
                                     InfoDetailRow(
                                         icon = Icons.Default.Phone,
                                         tint = palette.onlineDot,
@@ -335,7 +340,7 @@ fun PerfilContactoChatScreen(
                                     )
                                 }
                                 val yape = tienda?.numeroYapePlin.orEmpty()
-                                if (yape.isNotBlank()) {
+                                if (!estaBloqueada && yape.isNotBlank()) {
                                     InfoDetailRow(
                                         icon = Icons.Default.Payments,
                                         tint = palette.accentWarmGold,
@@ -347,7 +352,7 @@ fun PerfilContactoChatScreen(
                             }
                         }
 
-                        if (objetivo.productosTienda.isNotEmpty()) {
+                        if (!estaBloqueada && objetivo.productosTienda.isNotEmpty()) {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(
                                     text = "PRODUCTOS DE $tituloNombre (${objetivo.productosTienda.size})",
@@ -423,7 +428,7 @@ fun PerfilContactoChatScreen(
                                     etiqueta = "Zona frecuente en Piura",
                                     valor = buyer?.zonaPiura?.ifBlank { "Piura / UNP" } ?: "Piura / UNP"
                                 )
-                                if (telefono.isNotBlank()) {
+                                if (!estaBloqueada && telefono.isNotBlank()) {
                                     InfoDetailRow(
                                         icon = Icons.Default.Phone,
                                         tint = palette.onlineDot,
@@ -529,9 +534,9 @@ fun PerfilContactoChatScreen(
                                 }
                             } else {
                                 Text(
-                                    text = "Esta conversación fue bloqueada por la contraparte.",
+                                    text = "Por el momento no es posible enviar mensajes en esta conversación.",
                                     fontSize = 12.5.sp,
-                                    color = MaterialTheme.colorScheme.error,
+                                    color = palette.incomingMeta,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
                                 )
                             }
@@ -567,7 +572,7 @@ fun PerfilContactoChatScreen(
             onDismissRequest = { mostrarConfirmacionBloqueo = false },
             icon = { Icon(Icons.Default.Block, null, tint = MaterialTheme.colorScheme.error) },
             title = { Text("¿Bloquear a $tituloNombre?", fontWeight = FontWeight.Bold) },
-            text = { Text("Ninguna parte podrá enviar mensajes hasta que desbloquees la conversación.") },
+            text = { Text("Se suspenderán los mensajes y los pedidos entre ambas partes hasta que desbloquees la conversación.") },
             confirmButton = {
                 Button(
                     onClick = {

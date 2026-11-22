@@ -1,5 +1,6 @@
 package com.unp.emprendepiura.data.repository
 
+import com.unp.emprendepiura.core.network.RealtimeChannelHelper
 import com.unp.emprendepiura.core.network.SupaClient
 import com.unp.emprendepiura.data.dto.ChatPresenceDto
 import com.unp.emprendepiura.data.dto.ConversacionCreateDto
@@ -8,6 +9,7 @@ import com.unp.emprendepiura.data.dto.MensajeDto
 import com.unp.emprendepiura.data.dto.MensajeInsertDto
 import com.unp.emprendepiura.data.dto.TypingBroadcastDto
 import com.unp.emprendepiura.data.dto.toDomain
+import com.unp.emprendepiura.domain.model.ChatInboxRealtimeEvent
 import com.unp.emprendepiura.domain.model.ChatRoomRealtimeEvent
 import com.unp.emprendepiura.domain.model.Conversacion
 import com.unp.emprendepiura.domain.model.Mensaje
@@ -23,14 +25,13 @@ import io.github.jan.supabase.realtime.decodeLeavesAs
 import io.github.jan.supabase.realtime.decodeOldRecordOrNull
 import io.github.jan.supabase.realtime.decodeRecordOrNull
 import io.github.jan.supabase.realtime.postgresChangeFlow
-import io.github.jan.supabase.realtime.realtime
+import io.github.jan.supabase.storage.storage
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -41,7 +42,8 @@ import java.util.concurrent.ConcurrentHashMap
  * Archivo: ChatRepository.kt
  * Proposito: Mensajeria real comprador <-> emprendedor con persistencia en PostgreSQL,
  *            bloqueo bidireccional persistente, confirmacion de lectura (leido=true) y
- *            Supabase Realtime (Postgres Changes, Broadcast de escritura y Presence en vivo).
+ *            Supabase Realtime resiliente (Postgres Changes, Broadcast de escritura y Presence)
+ *            con registro deterministico UNDISPATCHED y reconexion entre redes distintas.
  */
 class ChatRepository {
 
@@ -77,6 +79,31 @@ class ChatRepository {
             .decodeSingle<ConversacionDto>()
 
         return created.toDomain()
+    }
+
+    suspend fun getConversacionPorId(conversacionId: String): Conversacion? {
+        if (conversacionId.isBlank()) return null
+        return SupaClient.client.from("conversaciones")
+            .select { filter { eq("id", conversacionId) } }
+            .decodeList<ConversacionDto>()
+            .firstOrNull()
+            ?.toDomain()
+    }
+
+    suspend fun existeBloqueoConTienda(compradorId: String, emprendimientoId: String): Boolean {
+        if (compradorId.isBlank() || emprendimientoId.isBlank()) return false
+        return runCatching {
+            val conv = SupaClient.client.from("conversaciones")
+                .select {
+                    filter {
+                        eq("comprador_id", compradorId)
+                        eq("emprendimiento_id", emprendimientoId)
+                    }
+                }
+                .decodeList<ConversacionDto>()
+                .firstOrNull()
+            !conv?.bloqueadoPor.isNullOrBlank()
+        }.getOrDefault(false)
     }
 
     suspend fun getConversacionesUsuario(usuarioId: String, miEmprendimientoId: String?): List<Conversacion> {
@@ -148,6 +175,38 @@ class ChatRepository {
             .toDomain()
     }
 
+    /**
+     * Sube un adjunto de chat (foto, nota de voz o documento) a Supabase Storage.
+     * Intenta primero el bucket dedicado marketplace-chat y respalda automaticamente
+     * en marketplace-productos/chat/ si el bucket dedicado aun no fue creado.
+     */
+    suspend fun subirAdjuntoChat(
+        conversacionId: String,
+        bytes: ByteArray,
+        extension: String,
+        carpeta: String
+    ): String {
+        val extSegura = extension.lowercase().filter { it.isLetterOrDigit() }.ifBlank { "bin" }
+        val fileName = "${System.currentTimeMillis()}_${(1000..9999).random()}.$extSegura"
+        val primaryPath = "$carpeta/$conversacionId/$fileName"
+
+        val primaryUpload = runCatching {
+            SupaClient.client.storage.from(SupaClient.BUCKET_CHAT).upload(primaryPath, bytes) {
+                upsert = true
+            }
+            SupaClient.client.storage.from(SupaClient.BUCKET_CHAT).publicUrl(primaryPath)
+        }
+        if (primaryUpload.isSuccess) {
+            return primaryUpload.getOrThrow()
+        }
+
+        val fallbackPath = "chat/$carpeta/$conversacionId/$fileName"
+        SupaClient.client.storage.from(SupaClient.BUCKET_PRODUCTOS).upload(fallbackPath, bytes) {
+            upsert = true
+        }
+        return SupaClient.client.storage.from(SupaClient.BUCKET_PRODUCTOS).publicUrl(fallbackPath)
+    }
+
     suspend fun marcarMensajesComoLeidos(conversacionId: String, miUsuarioId: String) {
         if (conversacionId.isBlank() || miUsuarioId.isBlank()) return
         runCatching {
@@ -160,6 +219,29 @@ class ChatRepository {
                         neq("remitente_id", miUsuarioId)
                         eq("leido", false)
                     }
+                }
+        }
+    }
+
+    suspend fun actualizarContenidoMensaje(mensajeId: String, nuevoContenido: String): Mensaje {
+        return SupaClient.client.from("mensajes")
+            .update({
+                set("contenido", nuevoContenido)
+            }) {
+                filter { eq("id", mensajeId) }
+                select()
+            }
+            .decodeSingle<MensajeDto>()
+            .toDomain()
+    }
+
+    suspend fun actualizarUltimoMensajeConversacion(conversacionId: String, textoResumen: String) {
+        runCatching {
+            SupaClient.client.from("conversaciones")
+                .update({
+                    set("ultimo_mensaje", textoResumen)
+                }) {
+                    filter { eq("id", conversacionId) }
                 }
         }
     }
@@ -207,23 +289,17 @@ class ChatRepository {
 
     /**
      * Canal Realtime unificado de sala de chat:
-     * - Nuevos mensajes y confirmacion de lectura (leido=true) via Postgres Changes.
-     * - Bloqueo/desbloqueo y eliminacion de conversacion en tiempo real.
-     * - Indicador real de "escribiendo..." via Broadcast.
-     * - Presencia real "En linea" via Presence.
+     * - Registra todos los callbacks con CoroutineStart.UNDISPATCHED antes de suscribir
+     *   (elimina la condicion de carrera en dispositivos independientes).
+     * - Mantiene reconexion automatica ante cambios de red (Wi-Fi <-> 4G/5G).
      */
     fun observarSalaRealtime(conversacionId: String, miUsuarioId: String): Flow<ChatRoomRealtimeEvent> = callbackFlow {
         val channelId = "emprende_room_$conversacionId"
 
-        // Limpiar cualquier instancia residual del mismo canal antes de registrar flujos
         canalesSala.remove(conversacionId)?.let { previo ->
-            runCatching { SupaClient.client.realtime.removeChannel(previo) }
+            RealtimeChannelHelper.removerCanalSiCoincide(previo)
         }
-        SupaClient.client.realtime.subscriptions.values
-            .firstOrNull { it.topic.endsWith(channelId) }
-            ?.let { residual ->
-                runCatching { SupaClient.client.realtime.removeChannel(residual) }
-            }
+        RealtimeChannelHelper.limpiarCanalResidualPorTopic(channelId)
 
         val channel = SupaClient.client.channel(channelId) {
             broadcast { receiveOwnBroadcasts = false }
@@ -231,71 +307,79 @@ class ChatRepository {
         }
         canalesSala[conversacionId] = channel
 
-        val mensajesJob = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
-            table = "mensajes"
-        }.onEach { action ->
-            when (action) {
-                is PostgresAction.Insert -> {
-                    action.decodeRecordOrNull<MensajeDto>()?.let { dto ->
-                        if (dto.conversacionId == conversacionId) {
-                            trySend(ChatRoomRealtimeEvent.NuevoMensaje(dto.toDomain()))
+        val mensajesJob = launch(start = CoroutineStart.UNDISPATCHED) {
+            channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+                table = "mensajes"
+            }.collect { action ->
+                when (action) {
+                    is PostgresAction.Insert -> {
+                        action.decodeRecordOrNull<MensajeDto>()?.let { dto ->
+                            if (dto.conversacionId == conversacionId) {
+                                trySend(ChatRoomRealtimeEvent.NuevoMensaje(dto.toDomain()))
+                            }
                         }
                     }
-                }
-                is PostgresAction.Update -> {
-                    action.decodeRecordOrNull<MensajeDto>()?.let { dto ->
-                        if (dto.conversacionId == conversacionId) {
-                            trySend(ChatRoomRealtimeEvent.MensajeActualizado(dto.toDomain()))
+                    is PostgresAction.Update -> {
+                        action.decodeRecordOrNull<MensajeDto>()?.let { dto ->
+                            if (dto.conversacionId == conversacionId) {
+                                trySend(ChatRoomRealtimeEvent.MensajeActualizado(dto.toDomain()))
+                            }
                         }
                     }
+                    else -> Unit
                 }
-                else -> Unit
             }
-        }.launchIn(this)
+        }
 
-        val conversacionJob = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
-            table = "conversaciones"
-        }.onEach { action ->
-            when (action) {
-                is PostgresAction.Update -> {
-                    action.decodeRecordOrNull<ConversacionDto>()?.let { dto ->
-                        if (dto.id == conversacionId) {
-                            trySend(ChatRoomRealtimeEvent.ConversacionActualizada(dto.toDomain()))
+        val conversacionJob = launch(start = CoroutineStart.UNDISPATCHED) {
+            channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+                table = "conversaciones"
+            }.collect { action ->
+                when (action) {
+                    is PostgresAction.Update -> {
+                        action.decodeRecordOrNull<ConversacionDto>()?.let { dto ->
+                            if (dto.id == conversacionId) {
+                                trySend(ChatRoomRealtimeEvent.ConversacionActualizada(dto.toDomain()))
+                            }
                         }
                     }
-                }
-                is PostgresAction.Delete -> {
-                    action.decodeOldRecordOrNull<ConversacionDto>()?.let { dto ->
-                        if (dto.id == conversacionId) {
-                            trySend(ChatRoomRealtimeEvent.ConversacionEliminada(dto.id))
+                    is PostgresAction.Delete -> {
+                        action.decodeOldRecordOrNull<ConversacionDto>()?.let { dto ->
+                            if (dto.id == conversacionId) {
+                                trySend(ChatRoomRealtimeEvent.ConversacionEliminada(dto.id))
+                            }
                         }
                     }
+                    else -> Unit
                 }
-                else -> Unit
             }
-        }.launchIn(this)
+        }
 
-        val typingJob = channel.broadcastFlow<TypingBroadcastDto>(event = "typing")
-            .onEach { dto ->
+        val typingJob = launch(start = CoroutineStart.UNDISPATCHED) {
+            channel.broadcastFlow<TypingBroadcastDto>(event = "typing").collect { dto ->
                 if (dto.usuarioId != miUsuarioId) {
                     trySend(ChatRoomRealtimeEvent.ContraparteEscribiendo(dto.escribiendo))
                 }
             }
-            .launchIn(this)
+        }
 
         val usuariosPresentes = mutableSetOf<String>()
-        val presenceJob = channel.presenceChangeFlow()
-            .onEach { action ->
+        val presenceJob = launch(start = CoroutineStart.UNDISPATCHED) {
+            channel.presenceChangeFlow().collect { action ->
                 action.decodeJoinsAs<ChatPresenceDto>().forEach { usuariosPresentes.add(it.usuarioId) }
                 action.decodeLeavesAs<ChatPresenceDto>().forEach { usuariosPresentes.remove(it.usuarioId) }
                 trySend(ChatRoomRealtimeEvent.ContraparteEnLinea(usuariosPresentes.any { it != miUsuarioId }))
             }
-            .launchIn(this)
+        }
 
         val subscribeJob = launch {
-            runCatching {
-                channel.subscribe(blockUntilSubscribed = true)
-                channel.track(buildJsonObject { put("usuario_id", miUsuarioId) })
+            RealtimeChannelHelper.suscribirConReintentos(channel) { esReconexion ->
+                runCatching {
+                    channel.track(buildJsonObject { put("usuario_id", miUsuarioId) })
+                }
+                if (esReconexion) {
+                    trySend(ChatRoomRealtimeEvent.Reconectado)
+                }
             }
         }
 
@@ -308,52 +392,69 @@ class ChatRepository {
             presenceJob.cancel()
             CoroutineScope(Dispatchers.IO).launch {
                 runCatching { channel.untrack() }
-                runCatching { SupaClient.client.realtime.removeChannel(channel) }
+                RealtimeChannelHelper.removerCanalSiCoincide(channel)
             }
         }
     }
 
     /**
-     * Observa cambios globales en conversaciones y mensajes para refrescar la bandeja
-     * y los contadores de no leidos en tiempo real.
+     * Observa cambios globales en conversaciones y mensajes para refrescar la bandeja,
+     * bloqueos, contadores de no leidos y disparar notificaciones nativas en vivo.
      */
-    fun observarBandejaRealtime(usuarioId: String, miEmprendimientoId: String?): Flow<Unit> = callbackFlow {
-        val channelId = "emprende_inbox_${usuarioId.take(12)}"
-
-        SupaClient.client.realtime.subscriptions.values
-            .firstOrNull { it.topic.endsWith(channelId) }
-            ?.let { residual ->
-                runCatching { SupaClient.client.realtime.removeChannel(residual) }
-            }
-
+    fun observarBandejaRealtime(
+        usuarioId: String,
+        miEmprendimientoId: String?
+    ): Flow<ChatInboxRealtimeEvent> = callbackFlow {
+        val channelId = RealtimeChannelHelper.uniqueChannelId("emprende_inbox_${usuarioId.take(10)}")
         val channel = SupaClient.client.channel(channelId)
 
-        val convJob = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
-            table = "conversaciones"
-        }.onEach { action ->
-            val relevante = when (action) {
-                is PostgresAction.Insert -> action.decodeRecordOrNull<ConversacionDto>()?.let {
-                    it.compradorId == usuarioId || (!miEmprendimientoId.isNullOrBlank() && it.emprendimientoId == miEmprendimientoId)
-                } ?: true
-                is PostgresAction.Update -> action.decodeRecordOrNull<ConversacionDto>()?.let {
-                    it.compradorId == usuarioId || (!miEmprendimientoId.isNullOrBlank() && it.emprendimientoId == miEmprendimientoId)
-                } ?: true
-                is PostgresAction.Delete -> true
-                else -> false
+        val convJob = launch(start = CoroutineStart.UNDISPATCHED) {
+            channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+                table = "conversaciones"
+            }.collect { action ->
+                val relevante = when (action) {
+                    is PostgresAction.Insert -> action.decodeRecordOrNull<ConversacionDto>()?.let {
+                        it.compradorId == usuarioId ||
+                            (!miEmprendimientoId.isNullOrBlank() && it.emprendimientoId == miEmprendimientoId)
+                    } ?: true
+                    is PostgresAction.Update -> action.decodeRecordOrNull<ConversacionDto>()?.let {
+                        it.compradorId == usuarioId ||
+                            (!miEmprendimientoId.isNullOrBlank() && it.emprendimientoId == miEmprendimientoId)
+                    } ?: true
+                    is PostgresAction.Delete -> true
+                    else -> false
+                }
+                if (relevante) trySend(ChatInboxRealtimeEvent.ConversacionesActualizadas)
             }
-            if (relevante) trySend(Unit)
-        }.launchIn(this)
+        }
 
-        val msgJob = channel.postgresChangeFlow<PostgresAction>(schema = "public") {
-            table = "mensajes"
-        }.onEach { action ->
-            if (action is PostgresAction.Insert || action is PostgresAction.Update) {
-                trySend(Unit)
+        val msgJob = launch(start = CoroutineStart.UNDISPATCHED) {
+            channel.postgresChangeFlow<PostgresAction>(schema = "public") {
+                table = "mensajes"
+            }.collect { action ->
+                when (action) {
+                    is PostgresAction.Insert -> {
+                        val dto = action.decodeRecordOrNull<MensajeDto>()
+                        if (dto != null) {
+                            trySend(ChatInboxRealtimeEvent.MensajeRecibido(dto.toDomain()))
+                        } else {
+                            trySend(ChatInboxRealtimeEvent.ConversacionesActualizadas)
+                        }
+                    }
+                    is PostgresAction.Update -> {
+                        trySend(ChatInboxRealtimeEvent.ConversacionesActualizadas)
+                    }
+                    else -> Unit
+                }
             }
-        }.launchIn(this)
+        }
 
         val subJob = launch {
-            runCatching { channel.subscribe() }
+            RealtimeChannelHelper.suscribirConReintentos(channel) { esReconexion ->
+                if (esReconexion) {
+                    trySend(ChatInboxRealtimeEvent.Reconectado)
+                }
+            }
         }
 
         awaitClose {
@@ -361,7 +462,7 @@ class ChatRepository {
             convJob.cancel()
             msgJob.cancel()
             CoroutineScope(Dispatchers.IO).launch {
-                runCatching { SupaClient.client.realtime.removeChannel(channel) }
+                RealtimeChannelHelper.removerCanalSiCoincide(channel)
             }
         }
     }

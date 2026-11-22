@@ -7,7 +7,7 @@ import javax.crypto.spec.SecretKeySpec
 /*
  * Archivo: CodigoEntregaUtil.kt
  * Proposito: Generacion y validacion TOTP (HMAC-SHA256) de codigos PIN dinamicos de 6 digitos
- *            con rotacion automatica cada 90 segundos estilo Authenticator para entregas seguras.
+ *            con rotacion automatica cada 90 segundos para entregas seguras.
  */
 object CodigoEntregaUtil {
 
@@ -72,7 +72,7 @@ object CodigoEntregaUtil {
     }
 
     /**
-     * Formatea los 6 digitos en dos bloques de 3 para lectura rapida estilo Authenticator ("482  917").
+     * Formatea los 6 digitos en dos bloques de 3 para lectura rapida ("482  917").
      */
     fun formatearPin6(pin: String): String {
         val limpio = pin.filter { it.isDigit() }.padStart(6, '0').take(6)

@@ -5,6 +5,8 @@ import com.unp.emprendepiura.domain.model.Emprendimiento
 import com.unp.emprendepiura.domain.model.EstadoEmprendimiento
 import com.unp.emprendepiura.domain.model.EstadoProducto
 import com.unp.emprendepiura.domain.model.Producto
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -52,6 +54,7 @@ data class EmprendimientoDto(
     val motivoRevision: String? = null
 )
 
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
 data class EmprendimientoWriteDto(
     @SerialName("usuario_id")
@@ -70,7 +73,12 @@ data class EmprendimientoWriteDto(
     @SerialName("numero_yape_plin")
     val numeroYapePlin: String,
     @SerialName("logo_url")
-    val logoUrl: String? = null
+    val logoUrl: String? = null,
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    val estado: String = "PENDIENTE",
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    @SerialName("motivo_revision")
+    val motivoRevision: String = ""
 )
 
 @Serializable

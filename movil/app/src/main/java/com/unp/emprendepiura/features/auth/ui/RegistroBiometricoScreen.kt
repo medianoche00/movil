@@ -1,6 +1,11 @@
 package com.unp.emprendepiura.features.auth.ui
 
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -24,8 +29,18 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.unp.emprendepiura.core.util.PiuraConstants
+import com.unp.emprendepiura.domain.model.RolUsuario
 import com.unp.emprendepiura.features.auth.ui.components.EnrollmentFaceCard
 import com.unp.emprendepiura.features.auth.ui.components.EnrollmentFingerprintCard
+
+private val CATEGORIAS_REGISTRO_TIENDA = listOf(
+    "Alimentos y Postres",
+    "Apuntes y Papelería",
+    "Moda y Accesorios",
+    "Servicios UNP",
+    "Artesanía Piurana",
+    "Tecnología y Accesorios"
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,6 +50,12 @@ fun RegistroBiometricoScreen(
     telefono: String,
     correo: String,
     zonaPiura: String,
+    tipoCuenta: RolUsuario = RolUsuario.COMPRADOR,
+    nombreTienda: String = "",
+    descripcionTienda: String = "",
+    categoriaTienda: String = "Alimentos y Postres",
+    puntoEntregaTienda: String = PiuraConstants.PUNTOS_ENCUENTRO_UNP.first(),
+    yapeTienda: String = "",
     contrasena: String,
     huellaVinculada: Boolean,
     fotoFacialUri: Uri?,
@@ -49,6 +70,12 @@ fun RegistroBiometricoScreen(
     onTelefonoChange: (String) -> Unit,
     onCorreoChange: (String) -> Unit,
     onZonaChange: (String) -> Unit,
+    onTipoCuentaChange: (RolUsuario) -> Unit = {},
+    onNombreTiendaChange: (String) -> Unit = {},
+    onDescripcionTiendaChange: (String) -> Unit = {},
+    onCategoriaTiendaChange: (String) -> Unit = {},
+    onPuntoEntregaTiendaChange: (String) -> Unit = {},
+    onYapeTiendaChange: (String) -> Unit = {},
     onContrasenaChange: (String) -> Unit,
     onVincularHuella: () -> Unit,
     onCapturarRostro: () -> Unit,
@@ -57,6 +84,8 @@ fun RegistroBiometricoScreen(
     modifier: Modifier = Modifier
 ) {
     var mostrarContrasena by remember { mutableStateOf(false) }
+    var comboRolExpandido by remember { mutableStateOf(false) }
+    val rolesPermitidos = remember { listOf(RolUsuario.COMPRADOR, RolUsuario.EMPRENDEDOR) }
 
     Scaffold(
         topBar = {
@@ -88,6 +117,8 @@ fun RegistroBiometricoScreen(
             modifier = modifier
                 .padding(padding)
                 .fillMaxSize()
+                .navigationBarsPadding()
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -183,7 +214,15 @@ fun RegistroBiometricoScreen(
                     OutlinedTextField(
                         value = telefono,
                         onValueChange = onTelefonoChange,
-                        label = { Text("Celular / WhatsApp") },
+                        label = {
+                            Text(
+                                if (!esModoEdicion && tipoCuenta == RolUsuario.EMPRENDEDOR) {
+                                    "Celular de contacto *"
+                                } else {
+                                    "Celular de contacto"
+                                }
+                            )
+                        },
                         placeholder = { Text("Ej. 969123456") },
                         leadingIcon = { Icon(Icons.Default.Phone, null, modifier = Modifier.size(20.dp)) },
                         shape = RoundedCornerShape(14.dp),
@@ -203,6 +242,182 @@ fun RegistroBiometricoScreen(
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    if (!esModoEdicion) {
+                        ExposedDropdownMenuBox(
+                            expanded = comboRolExpandido,
+                            onExpandedChange = { if (!saving) comboRolExpandido = it },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            OutlinedTextField(
+                                value = tipoCuenta.etiqueta,
+                                onValueChange = {},
+                                readOnly = true,
+                                enabled = !saving,
+                                label = { Text("Tipo de cuenta *") },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = if (tipoCuenta == RolUsuario.EMPRENDEDOR) {
+                                            Icons.Default.Storefront
+                                        } else {
+                                            Icons.Default.ShoppingBag
+                                        },
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = comboRolExpandido)
+                                },
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier
+                                    .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                                    .fillMaxWidth()
+                            )
+
+                            ExposedDropdownMenu(
+                                expanded = comboRolExpandido,
+                                onDismissRequest = { comboRolExpandido = false }
+                            ) {
+                                rolesPermitidos.forEach { rol ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Column {
+                                                Text(rol.etiqueta, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                                Text(
+                                                    text = if (rol == RolUsuario.EMPRENDEDOR) {
+                                                        "Compra y solicita activar tu tienda local"
+                                                    } else {
+                                                        "Explora el catálogo, compra y chatea en vivo"
+                                                    },
+                                                    fontSize = 11.5.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = if (rol == RolUsuario.EMPRENDEDOR) {
+                                                    Icons.Default.Storefront
+                                                } else {
+                                                    Icons.Default.ShoppingBag
+                                                },
+                                                contentDescription = null
+                                            )
+                                        },
+                                        onClick = {
+                                            onTipoCuentaChange(rol)
+                                            comboRolExpandido = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        AnimatedVisibility(
+                            visible = tipoCuenta == RolUsuario.EMPRENDEDOR,
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(16.dp),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.06f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Storefront,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Text(
+                                            text = "Datos de tu Emprendimiento",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.5.sp
+                                        )
+                                    }
+
+                                    Text(
+                                        text = "Tu solicitud de tienda será revisada por administración para activarte como Emprendedor.",
+                                        fontSize = 11.5.sp,
+                                        lineHeight = 16.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+
+                                    OutlinedTextField(
+                                        value = nombreTienda,
+                                        onValueChange = onNombreTiendaChange,
+                                        label = { Text("Nombre del Emprendimiento *") },
+                                        placeholder = { Text("Ej. Postres UNP, Artesanías Grau") },
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(14.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+
+                                    OutlinedTextField(
+                                        value = descripcionTienda,
+                                        onValueChange = onDescripcionTiendaChange,
+                                        label = { Text("¿Qué ofreces?") },
+                                        minLines = 2,
+                                        shape = RoundedCornerShape(14.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(
+                                            text = "Categoría principal",
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .horizontalScroll(rememberScrollState()),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            CATEGORIAS_REGISTRO_TIENDA.forEach { cat ->
+                                                FilterChip(
+                                                    selected = categoriaTienda == cat,
+                                                    onClick = { onCategoriaTiendaChange(cat) },
+                                                    label = { Text(cat, fontSize = 11.5.sp) },
+                                                    shape = RoundedCornerShape(50)
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    OutlinedTextField(
+                                        value = puntoEntregaTienda,
+                                        onValueChange = onPuntoEntregaTiendaChange,
+                                        label = { Text("Punto de entrega habitual *") },
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(14.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+
+                                    OutlinedTextField(
+                                        value = yapeTienda,
+                                        onValueChange = onYapeTiendaChange,
+                                        label = { Text("Número Yape / Plin (opcional)") },
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(14.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            }
+                        }
+                    }
 
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
@@ -270,24 +485,29 @@ fun RegistroBiometricoScreen(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 OutlinedButton(
                     onClick = onVolver,
                     enabled = !saving,
                     shape = RoundedCornerShape(16.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-                    modifier = Modifier.weight(1f)
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(50.dp)
                 ) {
-                    Text("Cancelar", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text("Cancelar", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1, softWrap = false)
                 }
 
                 Button(
                     onClick = onGuardarUsuario,
                     enabled = !saving && dniError == null,
                     shape = RoundedCornerShape(16.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-                    modifier = Modifier.weight(1.3f)
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                    modifier = Modifier
+                        .weight(1.3f)
+                        .height(50.dp)
                 ) {
                     if (saving) {
                         CircularProgressIndicator(
@@ -299,7 +519,9 @@ fun RegistroBiometricoScreen(
                         Text(
                             text = if (esModoEdicion) "Actualizando..." else "Guardando...",
                             fontWeight = FontWeight.SemiBold,
-                            fontSize = 14.sp
+                            fontSize = 14.sp,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     } else {
                         Icon(
@@ -311,7 +533,9 @@ fun RegistroBiometricoScreen(
                         Text(
                             text = if (esModoEdicion) "Actualizar Datos" else "Crear Cuenta",
                             fontWeight = FontWeight.SemiBold,
-                            fontSize = 14.sp
+                            fontSize = 14.sp,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }

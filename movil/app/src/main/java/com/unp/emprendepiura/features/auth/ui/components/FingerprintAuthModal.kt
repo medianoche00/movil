@@ -110,13 +110,15 @@ fun FingerprintAuthModal(
         properties = DialogProperties(
             dismissOnBackPress = true,
             dismissOnClickOutside = false,
-            usePlatformDefaultWidth = false
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
         )
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp, vertical = 24.dp),
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 20.dp),
             contentAlignment = Alignment.BottomCenter
         ) {
             Surface(
@@ -256,18 +258,23 @@ fun FingerprintAuthModal(
                     if (estado != EstadoHuellaModal.EXITO) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             OutlinedButton(
                                 onClick = onCancelar,
                                 shape = RoundedCornerShape(14.dp),
-                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 13.dp),
-                                modifier = Modifier.weight(1f)
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(48.dp)
                             ) {
                                 Text(
                                     text = "Cancelar",
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
+                                    fontSize = 14.sp,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
 
@@ -283,8 +290,10 @@ fun FingerprintAuthModal(
                                         containerColor = Color(0xFF2563EB),
                                         contentColor = Color.White
                                     ),
-                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 13.dp),
-                                    modifier = Modifier.weight(1f)
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(48.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Refresh,
@@ -295,7 +304,9 @@ fun FingerprintAuthModal(
                                     Text(
                                         text = "Reintentar",
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp
+                                        fontSize = 14.sp,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             }

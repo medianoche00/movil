@@ -42,6 +42,13 @@ sealed interface ChatRoomRealtimeEvent {
     data class ConversacionEliminada(val conversacionId: String) : ChatRoomRealtimeEvent
     data class ContraparteEscribiendo(val escribiendo: Boolean) : ChatRoomRealtimeEvent
     data class ContraparteEnLinea(val enLinea: Boolean) : ChatRoomRealtimeEvent
+    data object Reconectado : ChatRoomRealtimeEvent
+}
+
+sealed interface ChatInboxRealtimeEvent {
+    data class MensajeRecibido(val mensaje: Mensaje) : ChatInboxRealtimeEvent
+    data object ConversacionesActualizadas : ChatInboxRealtimeEvent
+    data object Reconectado : ChatInboxRealtimeEvent
 }
 
 data class AdminDashboardStats(

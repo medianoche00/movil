@@ -72,3 +72,9 @@ data class Orden(
     val nombreComprador: String = "",
     val items: List<OrdenItem> = emptyList()
 )
+
+sealed interface OrdenRealtimeEvent {
+    data class NuevaOrden(val orden: Orden) : OrdenRealtimeEvent
+    data class OrdenActualizada(val orden: Orden) : OrdenRealtimeEvent
+    data object Reconectado : OrdenRealtimeEvent
+}

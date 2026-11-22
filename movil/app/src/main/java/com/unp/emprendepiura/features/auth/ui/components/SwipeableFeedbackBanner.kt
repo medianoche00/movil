@@ -38,6 +38,16 @@ import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
+private data class BannerSnapshot(
+    val esError: Boolean,
+    val mensaje: String
+)
+
+/*
+ * Archivo: SwipeableFeedbackBanner.kt
+ * Proposito: Banner deslizable de avisos de error y exito. Congela el ultimo estado visible
+ *            durante la animacion de salida para evitar cambios de color rojo -> verde al cerrar.
+ */
 @Composable
 fun SwipeableFeedbackBanner(
     errorMessage: String?,
@@ -45,8 +55,21 @@ fun SwipeableFeedbackBanner(
     onClearMessages: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var dragX by remember(errorMessage, successMessage) { mutableFloatStateOf(0f) }
-    var dragY by remember(errorMessage, successMessage) { mutableFloatStateOf(0f) }
+    val activeSnapshot = remember(errorMessage, successMessage) {
+        when {
+            !errorMessage.isNullOrBlank() -> BannerSnapshot(esError = true, mensaje = errorMessage)
+            !successMessage.isNullOrBlank() -> BannerSnapshot(esError = false, mensaje = successMessage)
+            else -> null
+        }
+    }
+
+    var ultimoSnapshot by remember { mutableStateOf<BannerSnapshot?>(null) }
+    if (activeSnapshot != null) {
+        ultimoSnapshot = activeSnapshot
+    }
+
+    var dragX by remember(activeSnapshot) { mutableFloatStateOf(0f) }
+    var dragY by remember(activeSnapshot) { mutableFloatStateOf(0f) }
 
     val animX by animateFloatAsState(
         targetValue = dragX,
@@ -59,16 +82,14 @@ fun SwipeableFeedbackBanner(
         label = "bannerDragY"
     )
 
-    LaunchedEffect(errorMessage, successMessage) {
-        if (errorMessage != null || successMessage != null) {
+    LaunchedEffect(activeSnapshot) {
+        if (activeSnapshot != null) {
             delay(4500)
             onClearMessages()
         }
     }
 
-    val visible = errorMessage != null || successMessage != null
-    val esError = errorMessage != null
-    val mensaje = errorMessage ?: successMessage ?: ""
+    val visible = activeSnapshot != null
     val fadeProgress = (1f - (abs(animX) / 320f) - (abs(animY.coerceAtMost(0f)) / 180f)).coerceIn(0.25f, 1f)
 
     AnimatedVisibility(
@@ -86,15 +107,16 @@ fun SwipeableFeedbackBanner(
         ) { -it } + fadeIn(tween(180)),
         exit = slideOutVertically(animationSpec = tween(220)) { -it } + fadeOut(tween(200))
     ) {
+        val snap = ultimoSnapshot ?: return@AnimatedVisibility
         Surface(
             shape = RoundedCornerShape(22.dp),
-            color = if (esError) Color(0xFFD32F2F) else Color(0xFF2E7D32),
+            color = if (snap.esError) Color(0xFFD32F2F) else Color(0xFF2E7D32),
             shadowElevation = 10.dp,
             modifier = Modifier
                 .fillMaxWidth()
                 .offset { IntOffset(animX.roundToInt(), animY.roundToInt()) }
                 .alpha(fadeProgress)
-                .pointerInput(errorMessage, successMessage) {
+                .pointerInput(snap) {
                     detectDragGestures(
                         onDragEnd = {
                             if (dragY < -40f || abs(dragX) > 75f) {
@@ -130,7 +152,7 @@ fun SwipeableFeedbackBanner(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = if (esError) Icons.Default.ErrorOutline else Icons.Default.CheckCircle,
+                        imageVector = if (snap.esError) Icons.Default.ErrorOutline else Icons.Default.CheckCircle,
                         contentDescription = null,
                         tint = Color.White,
                         modifier = Modifier.size(20.dp)
@@ -141,14 +163,14 @@ fun SwipeableFeedbackBanner(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = if (esError) "Aviso del Sistema" else "Operación Exitosa",
+                        text = if (snap.esError) "Aviso del Sistema" else "Operación Exitosa",
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
                         color = Color.White
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        text = mensaje,
+                        text = snap.mensaje,
                         fontSize = 13.sp,
                         lineHeight = 17.sp,
                         color = Color.White.copy(alpha = 0.95f)

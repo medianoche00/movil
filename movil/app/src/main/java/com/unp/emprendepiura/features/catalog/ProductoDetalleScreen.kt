@@ -10,6 +10,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -36,6 +37,7 @@ fun ProductoDetalleScreen(
     producto: Producto,
     tienda: Emprendimiento?,
     esPropioProducto: Boolean,
+    tiendaBloqueada: Boolean = false,
     onVolver: () -> Unit,
     onAgregarCarrito: (Producto) -> String,
     onIrAlCarrito: () -> Unit,
@@ -131,51 +133,74 @@ fun ProductoDetalleScreen(
         },
         bottomBar = {
             Surface(shadowElevation = 10.dp, tonalElevation = 2.dp) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    val chatPress = rememberPressInteraction()
-                    OutlinedButton(
-                        onClick = { onChatearConTienda(producto) },
-                        enabled = !esPropioProducto,
-                        interactionSource = chatPress,
-                        shape = RoundedCornerShape(14.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 13.dp),
+                if (tiendaBloqueada) {
+                    Row(
                         modifier = Modifier
-                            .weight(0.9f)
-                            .pressScale(chatPress)
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Mensaje", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
-                    }
-
-                    val cartPress = rememberPressInteraction()
-                    Button(
-                        onClick = { feedbackMensaje = onAgregarCarrito(producto) },
-                        enabled = !esPropioProducto && producto.stock > 0,
-                        interactionSource = cartPress,
-                        shape = RoundedCornerShape(14.dp),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 13.dp),
-                        modifier = Modifier
-                            .weight(1.3f)
-                            .pressScale(cartPress)
-                    ) {
-                        Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = when {
-                                esPropioProducto -> "Tu producto"
-                                producto.stock <= 0 -> "Agotado"
-                                else -> "Al carrito"
-                            },
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
                         )
+                        Text(
+                            text = "Este producto no está disponible en este momento.",
+                            fontSize = 13.5.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        val chatPress = rememberPressInteraction()
+                        OutlinedButton(
+                            onClick = { onChatearConTienda(producto) },
+                            enabled = !esPropioProducto,
+                            interactionSource = chatPress,
+                            shape = RoundedCornerShape(14.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 13.dp),
+                            modifier = Modifier
+                                .weight(0.9f)
+                                .pressScale(chatPress)
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Mensaje", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        }
+
+                        val cartPress = rememberPressInteraction()
+                        Button(
+                            onClick = { feedbackMensaje = onAgregarCarrito(producto) },
+                            enabled = !esPropioProducto && producto.stock > 0,
+                            interactionSource = cartPress,
+                            shape = RoundedCornerShape(14.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 13.dp),
+                            modifier = Modifier
+                                .weight(1.3f)
+                                .pressScale(cartPress)
+                        ) {
+                            Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = when {
+                                    esPropioProducto -> "Tu producto"
+                                    producto.stock <= 0 -> "Agotado"
+                                    else -> "Al carrito"
+                                },
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
                     }
                 }
             }
@@ -239,6 +264,7 @@ fun ProductoDetalleScreen(
                 val storePress = rememberPressInteraction()
                 Surface(
                     onClick = onAbrirPerfilTienda,
+                    enabled = !tiendaBloqueada,
                     interactionSource = storePress,
                     shape = RoundedCornerShape(18.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),

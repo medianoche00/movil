@@ -155,8 +155,11 @@ CREATE TABLE IF NOT EXISTS public.mensajes (
 
 CREATE INDEX IF NOT EXISTS idx_mensajes_conv_fecha ON public.mensajes(conversacion_id, creado_en ASC);
 
-ALTER TABLE public.conversaciones REPLICA IDENTITY FULL;
-ALTER TABLE public.mensajes       REPLICA IDENTITY FULL;
+ALTER TABLE public.conversaciones  REPLICA IDENTITY FULL;
+ALTER TABLE public.mensajes        REPLICA IDENTITY FULL;
+ALTER TABLE public.ordenes         REPLICA IDENTITY FULL;
+ALTER TABLE public.productos       REPLICA IDENTITY FULL;
+ALTER TABLE public.emprendimientos REPLICA IDENTITY FULL;
 
 CREATE OR REPLACE FUNCTION public.validar_bloqueo_antes_de_mensaje()
 RETURNS TRIGGER
@@ -229,6 +232,16 @@ DECLARE
 BEGIN
     IF p_items IS NULL OR jsonb_array_length(p_items) = 0 THEN
         RAISE EXCEPTION 'El pedido debe contener al menos un producto.';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM public.conversaciones
+        WHERE comprador_id = p_comprador_id
+          AND emprendimiento_id = p_emprendimiento_id
+          AND bloqueado_por IS NOT NULL
+    ) THEN
+        RAISE EXCEPTION 'Este emprendimiento no esta disponible para realizar pedidos en este momento.';
     END IF;
 
     v_codigo := 'UNP-' || UPPER(SUBSTR(REPLACE(gen_random_uuid()::TEXT, '-', ''), 1, 6));
@@ -319,6 +332,8 @@ $$;
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.mensajes; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.conversaciones; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.ordenes; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.productos; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE public.emprendimientos; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- 9. RLS
 ALTER TABLE public.usuarios         ENABLE ROW LEVEL SECURITY;
@@ -347,20 +362,21 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES
     ('marketplace-productos', 'marketplace-productos', TRUE),
     ('marketplace-comprobantes', 'marketplace-comprobantes', TRUE),
-    ('marketplace-rostros', 'marketplace-rostros', TRUE)
+    ('marketplace-rostros', 'marketplace-rostros', TRUE),
+    ('marketplace-chat', 'marketplace-chat', TRUE)
 ON CONFLICT (id) DO NOTHING;
 
 DROP POLICY IF EXISTS "Public Read Marketplace" ON storage.objects;
 CREATE POLICY "Public Read Marketplace"
 ON storage.objects FOR SELECT
-USING (bucket_id IN ('marketplace-productos', 'marketplace-comprobantes', 'marketplace-rostros'));
+USING (bucket_id IN ('marketplace-productos', 'marketplace-comprobantes', 'marketplace-rostros', 'marketplace-chat'));
 
 DROP POLICY IF EXISTS "App Upload Marketplace" ON storage.objects;
 CREATE POLICY "App Upload Marketplace"
 ON storage.objects FOR INSERT
-WITH CHECK (bucket_id IN ('marketplace-productos', 'marketplace-comprobantes', 'marketplace-rostros'));
+WITH CHECK (bucket_id IN ('marketplace-productos', 'marketplace-comprobantes', 'marketplace-rostros', 'marketplace-chat'));
 
 DROP POLICY IF EXISTS "App Update Marketplace" ON storage.objects;
 CREATE POLICY "App Update Marketplace"
 ON storage.objects FOR UPDATE
-USING (bucket_id IN ('marketplace-productos', 'marketplace-comprobantes', 'marketplace-rostros'));
+USING (bucket_id IN ('marketplace-productos', 'marketplace-comprobantes', 'marketplace-rostros', 'marketplace-chat'));

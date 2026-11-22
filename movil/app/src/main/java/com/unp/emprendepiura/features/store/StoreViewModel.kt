@@ -13,6 +13,8 @@ import com.unp.emprendepiura.domain.model.EstadoProducto
 import com.unp.emprendepiura.domain.model.Producto
 import com.unp.emprendepiura.domain.validator.MarketplaceValidator
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,6 +22,11 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/*
+ * Archivo: StoreViewModel.kt
+ * Proposito: Gestion del emprendimiento del usuario, solicitud/reenvio de tienda,
+ *            administracion de productos propios y sincronizacion Realtime de estado.
+ */
 data class StoreUiState(
     val loading: Boolean = false,
     val saving: Boolean = false,
@@ -36,13 +43,42 @@ class StoreViewModel(
     private val _state = MutableStateFlow(StoreUiState())
     val state: StateFlow<StoreUiState> = _state.asStateFlow()
 
-    fun cargarMiTienda(usuarioId: String) {
+    private var usuarioObservadoId: String? = null
+    private var storeRealtimeJob: Job? = null
+    private var storeDebounceJob: Job? = null
+
+    fun iniciarObservacionMiTienda(usuarioId: String, onEstadoCambio: () -> Unit = {}) {
+        if (usuarioId.isBlank()) {
+            limpiarEstadoSesion()
+            return
+        }
+        val yaObservando = usuarioObservadoId == usuarioId && storeRealtimeJob?.isActive == true
+        usuarioObservadoId = usuarioId
+        cargarMiTienda(usuarioId, silencioso = yaObservando)
+        if (yaObservando) return
+
+        storeRealtimeJob?.cancel()
+        storeRealtimeJob = viewModelScope.launch {
+            storeRepo.observarMiEmprendimientoRealtime(usuarioId).collect {
+                storeDebounceJob?.cancel()
+                storeDebounceJob = launch {
+                    delay(250)
+                    cargarMiTienda(usuarioId, silencioso = true)
+                    onEstadoCambio()
+                }
+            }
+        }
+    }
+
+    fun cargarMiTienda(usuarioId: String, silencioso: Boolean = false) {
         if (usuarioId.isBlank()) {
             _state.update { StoreUiState() }
             return
         }
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null) }
+            if (!silencioso) {
+                _state.update { it.copy(loading = true, error = null) }
+            }
             try {
                 val tienda = withContext(Dispatchers.IO) { storeRepo.getMiEmprendimiento(usuarioId) }
                 val prods = if (tienda != null) {
@@ -50,8 +86,10 @@ class StoreViewModel(
                 } else emptyList()
 
                 _state.update { it.copy(loading = false, miTienda = tienda, misProductos = prods) }
-            } catch (e: Exception) {
-                _state.update { it.copy(loading = false, error = "Error al cargar tu emprendimiento.") }
+            } catch (_: Exception) {
+                if (!silencioso) {
+                    _state.update { it.copy(loading = false, error = "Error al cargar tu emprendimiento.", exito = null) }
+                }
             }
         }
     }
@@ -69,7 +107,7 @@ class StoreViewModel(
     ) {
         val err = MarketplaceValidator.validarSolicitudEmprendimiento(nombreTienda, telefono, puntoEncuentro)
         if (err != null) {
-            _state.update { it.copy(error = err) }
+            _state.update { it.copy(error = err, exito = null) }
             return
         }
 
@@ -86,7 +124,9 @@ class StoreViewModel(
                             zonaPiura = zonaPiura,
                             puntoEncuentroHabitual = puntoEncuentro.trim(),
                             telefonoContacto = telefono.trim(),
-                            numeroYapePlin = numeroYapePlin.trim().ifBlank { telefono.trim() }
+                            numeroYapePlin = numeroYapePlin.trim().ifBlank { telefono.trim() },
+                            estado = "PENDIENTE",
+                            motivoRevision = ""
                         )
                     )
                 }
@@ -94,13 +134,18 @@ class StoreViewModel(
                     it.copy(
                         saving = false,
                         miTienda = creada,
-                        exito = "Solicitud enviada. Un administrador revisará tu emprendimiento."
+                        error = null,
+                        exito = "Solicitud enviada. Esperando respuesta del administrador."
                     )
                 }
                 onGuardado()
             } catch (e: Exception) {
                 _state.update {
-                    it.copy(saving = false, error = "No se pudo registrar la solicitud: ${e.message}")
+                    it.copy(
+                        saving = false,
+                        error = "No se pudo registrar la solicitud: ${e.message}",
+                        exito = null
+                    )
                 }
             }
         }
@@ -121,7 +166,7 @@ class StoreViewModel(
     ) {
         val err = MarketplaceValidator.validarProducto(titulo, precioTexto, stockTexto, categoriaId)
         if (err != null) {
-            _state.update { it.copy(error = err) }
+            _state.update { it.copy(error = err, exito = null) }
             return
         }
 
@@ -163,12 +208,15 @@ class StoreViewModel(
                     it.copy(
                         saving = false,
                         misProductos = actualizados,
+                        error = null,
                         exito = if (productoExistente == null) "Producto publicado." else "Producto actualizado."
                     )
                 }
                 onGuardado()
             } catch (e: Exception) {
-                _state.update { it.copy(saving = false, error = "No se pudo guardar el producto: ${e.message}") }
+                _state.update {
+                    it.copy(saving = false, error = "No se pudo guardar el producto: ${e.message}", exito = null)
+                }
             }
         }
     }
@@ -188,5 +236,20 @@ class StoreViewModel(
         }
     }
 
+    fun limpiarEstadoSesion() {
+        storeRealtimeJob?.cancel()
+        storeRealtimeJob = null
+        storeDebounceJob?.cancel()
+        storeDebounceJob = null
+        usuarioObservadoId = null
+        _state.value = StoreUiState()
+    }
+
     fun limpiarMensajes() = _state.update { it.copy(error = null, exito = null) }
+
+    override fun onCleared() {
+        super.onCleared()
+        storeRealtimeJob?.cancel()
+        storeDebounceJob?.cancel()
+    }
 }

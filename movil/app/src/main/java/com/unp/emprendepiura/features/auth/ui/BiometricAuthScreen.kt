@@ -9,6 +9,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import com.unp.emprendepiura.core.theme.appleSubRouteTransition
@@ -25,11 +26,12 @@ fun BiometricAuthScreen(
     onToggleTheme: () -> Unit,
     volverDirectoDesdeRegistro: Boolean = false,
     onSolicitarCamaraFacial: (esModoRegistro: Boolean) -> Unit,
-    onEntrarAlMarketplace: () -> Unit,
+    onEntrarAlMarketplace: (esNuevoInicioSesion: Boolean) -> Unit,
     onVolverAlMarketplace: () -> Unit
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
+    val yaEstabaAutenticadoAlEntrar = remember { viewModel.state.value.usuarioAutenticado != null }
 
     DisposableEffect(Unit) {
         onDispose {
@@ -39,7 +41,8 @@ fun BiometricAuthScreen(
 
     LaunchedEffect(state.vistaActual) {
         if (state.vistaActual == BiometricVista.MARKETPLACE) {
-            onEntrarAlMarketplace()
+            val esNuevoLogin = !yaEstabaAutenticadoAlEntrar && state.usuarioAutenticado != null
+            onEntrarAlMarketplace(esNuevoLogin)
         }
     }
 
@@ -96,6 +99,12 @@ fun BiometricAuthScreen(
                     telefono = state.regTelefono,
                     correo = state.regCorreo,
                     zonaPiura = state.regZonaPiura,
+                    tipoCuenta = state.regTipoCuenta,
+                    nombreTienda = state.regNombreTienda,
+                    descripcionTienda = state.regDescripcionTienda,
+                    categoriaTienda = state.regCategoriaTienda,
+                    puntoEntregaTienda = state.regPuntoEntregaTienda,
+                    yapeTienda = state.regYapeTienda,
                     contrasena = state.regContrasena,
                     huellaVinculada = state.huellaRegistroLista,
                     fotoFacialUri = state.regFotoFacialUri,
@@ -110,6 +119,12 @@ fun BiometricAuthScreen(
                     onTelefonoChange = viewModel::onRegTelefonoChange,
                     onCorreoChange = viewModel::onRegCorreoChange,
                     onZonaChange = viewModel::onRegZonaChange,
+                    onTipoCuentaChange = viewModel::onRegTipoCuentaChange,
+                    onNombreTiendaChange = viewModel::onRegNombreTiendaChange,
+                    onDescripcionTiendaChange = viewModel::onRegDescripcionTiendaChange,
+                    onCategoriaTiendaChange = viewModel::onRegCategoriaTiendaChange,
+                    onPuntoEntregaTiendaChange = viewModel::onRegPuntoEntregaTiendaChange,
+                    onYapeTiendaChange = viewModel::onRegYapeTiendaChange,
                     onContrasenaChange = viewModel::onRegContrasenaChange,
                     onVincularHuella = viewModel::abrirModalHuellaRegistro,
                     onCapturarRostro = {

@@ -72,7 +72,7 @@ fun ChatsListScreen(
             val q = busqueda.trim().lowercase()
             state.conversaciones.filter {
                 it.nombreContraparte.lowercase().contains(q) ||
-                    it.ultimoMensaje.lowercase().contains(q)
+                    ChatMessageCodec.resumenLegible(it.ultimoMensaje).lowercase().contains(q)
             }
         }
     }
@@ -227,7 +227,7 @@ fun ChatsListScreen(
             icon = { Icon(Icons.Default.Block, null, tint = MaterialTheme.colorScheme.error) },
             title = { Text("¿Bloquear conversación?", fontWeight = FontWeight.Bold) },
             text = {
-                Text("Ni tú ni ${target.nombreContraparte} podrán enviar nuevos mensajes hasta que desbloquees este chat.")
+                Text("Se suspenderán los mensajes y los pedidos con ${target.nombreContraparte} hasta que desbloquees esta conversación.")
             },
             confirmButton = {
                 Button(
@@ -334,7 +334,7 @@ private fun ConversacionListCard(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (bloqueada) {
+                    if (bloqueada && bloqueadaPorMi) {
                         Icon(
                             imageVector = Icons.Default.Lock,
                             contentDescription = null,
@@ -344,7 +344,7 @@ private fun ConversacionListCard(
                     } else {
                         Text(
                             text = conv.nombreContraparte.take(1).uppercase().ifBlank { "E" },
-                            color = palette.avatarText,
+                            color = if (bloqueada) MaterialTheme.colorScheme.onSurfaceVariant else palette.avatarText,
                             fontWeight = FontWeight.ExtraBold,
                             fontSize = 18.sp
                         )
@@ -387,12 +387,15 @@ private fun ConversacionListCard(
                 ) {
                     if (bloqueada) {
                         StatusPillBadge(
-                            texto = if (bloqueadaPorMi) "Bloqueado por ti" else "Bloqueado",
-                            color = MaterialTheme.colorScheme.error
+                            texto = if (bloqueadaPorMi) "Bloqueado por ti" else "No disponible",
+                            color = if (bloqueadaPorMi) MaterialTheme.colorScheme.error else palette.incomingMeta
                         )
                     } else {
+                        val preview = remember(conv.ultimoMensaje) {
+                            ChatMessageCodec.resumenLegible(conv.ultimoMensaje).ifBlank { "Conversación iniciada" }
+                        }
                         Text(
-                            text = conv.ultimoMensaje.ifBlank { "Conversación iniciada" },
+                            text = preview,
                             fontSize = 13.sp,
                             fontWeight = if (conv.mensajesNoLeidos > 0) FontWeight.SemiBold else FontWeight.Normal,
                             color = if (conv.mensajesNoLeidos > 0) MaterialTheme.colorScheme.onSurface else palette.incomingMeta,

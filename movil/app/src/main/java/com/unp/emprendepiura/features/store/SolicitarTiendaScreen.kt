@@ -15,15 +15,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.unp.emprendepiura.core.theme.pressScale
+import com.unp.emprendepiura.core.theme.rememberPressInteraction
 import com.unp.emprendepiura.core.util.PiuraConstants
 import com.unp.emprendepiura.domain.model.Categoria
 
+/*
+ * Archivo: SolicitarTiendaScreen.kt
+ * Proposito: Formulario limpio de solicitud de emprendimiento. Al salir o retroceder
+ *            se descartan todos los campos ingresados para no retener datos previos.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SolicitarTiendaScreen(
     categorias: List<Categoria>,
-    telefonoInicial: String,
-    zonaInicial: String,
     saving: Boolean,
     onEnviarSolicitud: (
         nombreTienda: String,
@@ -42,16 +47,22 @@ fun SolicitarTiendaScreen(
         mutableStateOf(categorias.firstOrNull()?.nombre ?: "Alimentos y Postres")
     }
     var zonaPiura by remember {
-        mutableStateOf(zonaInicial.ifBlank { PiuraConstants.ZONAS_PIURA.first() })
+        mutableStateOf(PiuraConstants.ZONAS_PIURA.first())
     }
-    var puntoEncuentro by remember { mutableStateOf(PiuraConstants.PUNTOS_ENCUENTRO_UNP.first()) }
-    var telefono by remember { mutableStateOf(telefonoInicial) }
-    var yape by remember { mutableStateOf(telefonoInicial) }
+    var puntoEncuentro by remember { mutableStateOf("") }
+    var telefono by remember { mutableStateOf("") }
+    var yape by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Abrir mi Emprendimiento", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
+                title = {
+                    Text(
+                        text = "Solicitud de Emprendimiento",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onVolver, enabled = !saving) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
@@ -64,12 +75,14 @@ fun SolicitarTiendaScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
+                .navigationBarsPadding()
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "Completa los datos de tu emprendimiento. Un administrador aprobará tu tienda para que puedas publicar productos.",
+                text = "Completa los datos de tu emprendimiento. Un administrador revisará tu solicitud para activar tu tienda.",
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -88,6 +101,7 @@ fun SolicitarTiendaScreen(
                 value = descripcion,
                 onValueChange = { descripcion = it },
                 label = { Text("¿Qué ofreces?") },
+                placeholder = { Text("Describe brevemente tus productos o servicios") },
                 minLines = 2,
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -98,7 +112,11 @@ fun SolicitarTiendaScreen(
                 modifier = Modifier.horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val opcionesCat = if (categorias.isNotEmpty()) categorias.map { it.nombre } else listOf("Alimentos y Postres", "Servicios UNP")
+                val opcionesCat = if (categorias.isNotEmpty()) {
+                    categorias.map { it.nombre }
+                } else {
+                    listOf("Alimentos y Postres", "Servicios UNP")
+                }
                 opcionesCat.forEach { cat ->
                     FilterChip(
                         selected = categoriaPrincipal == cat,
@@ -114,7 +132,11 @@ fun SolicitarTiendaScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 PiuraConstants.ZONAS_PIURA.forEach { z ->
-                    FilterChip(selected = zonaPiura == z, onClick = { zonaPiura = z }, label = { Text(z, fontSize = 12.sp) })
+                    FilterChip(
+                        selected = zonaPiura == z,
+                        onClick = { zonaPiura = z },
+                        label = { Text(z, fontSize = 12.sp) }
+                    )
                 }
             }
 
@@ -122,6 +144,7 @@ fun SolicitarTiendaScreen(
                 value = puntoEncuentro,
                 onValueChange = { puntoEncuentro = it },
                 label = { Text("Punto de entrega habitual *") },
+                placeholder = { Text("Ej. Puerta Principal UNP, Comedor Universitario") },
                 singleLine = true,
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -131,6 +154,7 @@ fun SolicitarTiendaScreen(
                 value = telefono,
                 onValueChange = { telefono = it.filter { c -> c.isDigit() }.take(9) },
                 label = { Text("Celular de contacto *") },
+                placeholder = { Text("Ej. 969123456") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 singleLine = true,
                 shape = RoundedCornerShape(14.dp),
@@ -141,6 +165,7 @@ fun SolicitarTiendaScreen(
                 value = yape,
                 onValueChange = { yape = it.filter { c -> c.isDigit() }.take(9) },
                 label = { Text("Número Yape / Plin (opcional)") },
+                placeholder = { Text("Si se deja vacío, se usará el celular de contacto") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                 singleLine = true,
                 shape = RoundedCornerShape(14.dp),
@@ -149,19 +174,31 @@ fun SolicitarTiendaScreen(
 
             Spacer(Modifier.height(6.dp))
 
+            val sendPress = rememberPressInteraction()
             Button(
                 onClick = {
-                    onEnviarSolicitud(nombreTienda, descripcion, categoriaPrincipal, zonaPiura, puntoEncuentro, telefono, yape)
+                    onEnviarSolicitud(
+                        nombreTienda,
+                        descripcion,
+                        categoriaPrincipal,
+                        zonaPiura,
+                        puntoEncuentro,
+                        telefono,
+                        yape
+                    )
                 },
                 enabled = !saving,
+                interactionSource = sendPress,
                 shape = RoundedCornerShape(14.dp),
-                contentPadding = PaddingValues(vertical = 14.dp),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+                    .pressScale(sendPress)
             ) {
                 if (saving) {
                     CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                 } else {
-                    Text("Enviar Solicitud de Emprendimiento", fontWeight = FontWeight.Bold)
+                    Text("Enviar solicitud", fontWeight = FontWeight.Bold, fontSize = 14.5.sp)
                 }
             }
         }

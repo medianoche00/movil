@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -230,7 +231,8 @@ fun LiveFaceScannerModal(
         properties = DialogProperties(
             dismissOnBackPress = true,
             dismissOnClickOutside = false,
-            usePlatformDefaultWidth = false
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
         )
     ) {
         Surface(
@@ -242,21 +244,26 @@ fun LiveFaceScannerModal(
                     .fillMaxSize()
                     .statusBarsPadding()
                     .navigationBarsPadding()
-                    .padding(horizontal = 22.dp, vertical = 18.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.SpaceBetween
+                    .padding(horizontal = 22.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 12.dp)
+                    ) {
                         Text(
                             text = if (esModoRegistro) "Registro de Rostro" else "Reconocimiento Facial",
                             color = Color.White,
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 20.sp
+                            fontSize = 20.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = when {
@@ -265,7 +272,9 @@ fun LiveFaceScannerModal(
                                 else -> "Comparando con el titular del DNI"
                             },
                             color = Color(0xFF94A3B8),
-                            fontSize = 12.sp
+                            fontSize = 12.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 
@@ -285,19 +294,24 @@ fun LiveFaceScannerModal(
                 }
 
                 Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(vertical = 14.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    verticalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterVertically)
                 ) {
                     Box(
                         modifier = Modifier
-                            .width(248.dp)
-                            .height(312.dp)
-                            .clip(RoundedCornerShape(46.dp))
+                            .widthIn(max = 244.dp)
+                            .heightIn(max = 296.dp)
+                            .aspectRatio(0.82f)
+                            .clip(RoundedCornerShape(44.dp))
                             .background(Color(0xFF0F172A))
                             .border(
                                 width = 4.dp,
                                 color = colorMarco,
-                                shape = RoundedCornerShape(46.dp)
+                                shape = RoundedCornerShape(44.dp)
                             ),
                         contentAlignment = Alignment.Center
                     ) {
@@ -409,18 +423,23 @@ fun LiveFaceScannerModal(
 
                 if (fase == FaseEscanerFacial.FALLO_ROJO) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp, bottom = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         OutlinedButton(
                             onClick = onCancelar,
                             shape = RoundedCornerShape(16.dp),
                             border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f)),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-                            modifier = Modifier.weight(1f)
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(50.dp)
                         ) {
-                            Text("Cancelar", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("Cancelar", fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1, softWrap = false)
                         }
 
                         Button(
@@ -430,8 +449,10 @@ fun LiveFaceScannerModal(
                                 containerColor = Color(0xFF2563EB),
                                 contentColor = Color.White
                             ),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
-                            modifier = Modifier.weight(1f)
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(50.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Refresh,
@@ -439,19 +460,22 @@ fun LiveFaceScannerModal(
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(Modifier.width(6.dp))
-                            Text("Reintentar", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text("Reintentar", fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1, softWrap = false)
                         }
                     }
                 } else {
                     OutlinedButton(
                         onClick = onCancelar,
                         shape = RoundedCornerShape(16.dp),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFCBD5E1)),
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 13.dp),
-                        modifier = Modifier.fillMaxWidth()
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.22f)),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFE2E8F0)),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp, bottom = 6.dp)
+                            .height(50.dp)
                     ) {
-                        Text("Cancelar", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text("Cancelar", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1, softWrap = false)
                     }
                 }
             }

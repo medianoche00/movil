@@ -2,6 +2,7 @@ package com.unp.emprendepiura.features.auth.ui
 
 import android.net.Uri
 import com.unp.emprendepiura.core.util.PiuraConstants
+import com.unp.emprendepiura.domain.model.RolUsuario
 import com.unp.emprendepiura.domain.model.Usuario
 
 enum class BiometricVista {
@@ -26,6 +27,12 @@ data class BiometricUiState(
     val regTelefono: String = "",
     val regCorreo: String = "",
     val regZonaPiura: String = PiuraConstants.ZONAS_PIURA.first(),
+    val regTipoCuenta: RolUsuario = RolUsuario.COMPRADOR,
+    val regNombreTienda: String = "",
+    val regDescripcionTienda: String = "",
+    val regCategoriaTienda: String = "Alimentos y Postres",
+    val regPuntoEntregaTienda: String = PiuraConstants.PUNTOS_ENCUENTRO_UNP.first(),
+    val regYapeTienda: String = "",
     val regContrasena: String = "",
     val regPasswordHashActual: String = "",
     val regHuellaToken: String = "",

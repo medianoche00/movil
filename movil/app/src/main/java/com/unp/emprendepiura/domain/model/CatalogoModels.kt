@@ -7,7 +7,7 @@ package com.unp.emprendepiura.domain.model
 enum class EstadoEmprendimiento(val etiqueta: String) {
     PENDIENTE("Pendiente de aprobación"),
     APROBADO("Aprobado"),
-    SUSPENDIDO("Suspendido");
+    SUSPENDIDO("Rechazado");
 
     companion object {
         fun fromRaw(raw: String): EstadoEmprendimiento =

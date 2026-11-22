@@ -7,10 +7,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.unp.emprendepiura.core.util.HashUtil
 import com.unp.emprendepiura.core.util.PiuraConstants
+import com.unp.emprendepiura.data.dto.EmprendimientoWriteDto
 import com.unp.emprendepiura.data.dto.UsuarioUpsertDto
 import com.unp.emprendepiura.data.repository.AuthBiometricRepository
+import com.unp.emprendepiura.data.repository.StoreRepository
+import com.unp.emprendepiura.domain.model.RolUsuario
 import com.unp.emprendepiura.domain.model.Usuario
 import com.unp.emprendepiura.domain.validator.BiometricValidator
+import com.unp.emprendepiura.domain.validator.MarketplaceValidator
 import com.unp.emprendepiura.features.auth.biometric.FaceAnalyzerUtil
 import com.unp.emprendepiura.features.auth.biometric.FaceComparisonEngine
 import com.unp.emprendepiura.features.auth.ui.components.ResultadoEscaneoEnVivo
@@ -29,7 +33,8 @@ import kotlinx.coroutines.withContext
  *            registro unificado de usuarios en Supabase (public.usuarios) y recaptura en sesion.
  */
 class BiometricViewModel(
-    private val repository: AuthBiometricRepository = AuthBiometricRepository()
+    private val repository: AuthBiometricRepository = AuthBiometricRepository(),
+    private val storeRepository: StoreRepository = StoreRepository()
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(BiometricUiState())
@@ -59,6 +64,12 @@ class BiometricViewModel(
                 regTelefono = "",
                 regCorreo = "",
                 regZonaPiura = PiuraConstants.ZONAS_PIURA.first(),
+                regTipoCuenta = RolUsuario.COMPRADOR,
+                regNombreTienda = "",
+                regDescripcionTienda = "",
+                regCategoriaTienda = "Alimentos y Postres",
+                regPuntoEntregaTienda = PiuraConstants.PUNTOS_ENCUENTRO_UNP.first(),
+                regYapeTienda = "",
                 regContrasena = "",
                 regPasswordHashActual = "",
                 regHuellaToken = "",
@@ -114,6 +125,15 @@ class BiometricViewModel(
     fun onRegTelefonoChange(v: String) = _state.update { it.copy(regTelefono = v.filter { c -> c.isDigit() }.take(12)) }
     fun onRegCorreoChange(v: String) = _state.update { it.copy(regCorreo = v) }
     fun onRegZonaChange(v: String) = _state.update { it.copy(regZonaPiura = v) }
+    fun onRegTipoCuentaChange(rol: RolUsuario) {
+        val seguro = if (rol == RolUsuario.EMPRENDEDOR) RolUsuario.EMPRENDEDOR else RolUsuario.COMPRADOR
+        _state.update { it.copy(regTipoCuenta = seguro) }
+    }
+    fun onRegNombreTiendaChange(v: String) = _state.update { it.copy(regNombreTienda = v) }
+    fun onRegDescripcionTiendaChange(v: String) = _state.update { it.copy(regDescripcionTienda = v) }
+    fun onRegCategoriaTiendaChange(v: String) = _state.update { it.copy(regCategoriaTienda = v) }
+    fun onRegPuntoEntregaTiendaChange(v: String) = _state.update { it.copy(regPuntoEntregaTienda = v) }
+    fun onRegYapeTiendaChange(v: String) = _state.update { it.copy(regYapeTienda = v.filter { c -> c.isDigit() }.take(9)) }
     fun onRegContrasenaChange(v: String) = _state.update { it.copy(regContrasena = v) }
 
     /**
@@ -157,6 +177,12 @@ class BiometricViewModel(
                 regTelefono = "",
                 regCorreo = "",
                 regZonaPiura = PiuraConstants.ZONAS_PIURA.first(),
+                regTipoCuenta = RolUsuario.COMPRADOR,
+                regNombreTienda = "",
+                regDescripcionTienda = "",
+                regCategoriaTienda = "Alimentos y Postres",
+                regPuntoEntregaTienda = PiuraConstants.PUNTOS_ENCUENTRO_UNP.first(),
+                regYapeTienda = "",
                 regContrasena = "",
                 regPasswordHashActual = "",
                 regHuellaToken = "",
@@ -257,7 +283,7 @@ class BiometricViewModel(
         }
     }
 
-    fun cerrarSesion() {
+    fun cerrarSesion(mostrarBanner: Boolean = false) {
         usuarioObjetivoFacial = null
         similitudFacialTemp = 0
         _state.update {
@@ -283,7 +309,7 @@ class BiometricViewModel(
                 regVectorFacial = "",
                 regDniError = null,
                 errorMessage = null,
-                successMessage = "Sesión cerrada correctamente."
+                successMessage = if (mostrarBanner) "Sesión cerrada correctamente." else null
             )
         }
     }
@@ -328,7 +354,13 @@ class BiometricViewModel(
 
             if (usuario == null) {
                 _state.update {
-                    it.copy(errorMessage = "El DNI $dni no se encuentra registrado. Usa Regístrate.")
+                    it.copy(errorMessage = "El DNI $dni no se encuentra registrado. Usa Regístrate.", successMessage = null)
+                }
+                return@launch
+            }
+            if (!usuario.activo) {
+                _state.update {
+                    it.copy(errorMessage = "Esta cuenta se encuentra deshabilitada por administración.", successMessage = null)
                 }
                 return@launch
             }
@@ -355,14 +387,25 @@ class BiometricViewModel(
                     _state.update {
                         it.copy(
                             loading = false,
-                            errorMessage = "El DNI $dni no se encuentra registrado. Usa Regístrate."
+                            errorMessage = "El DNI $dni no se encuentra registrado. Usa Regístrate.",
+                            successMessage = null
+                        )
+                    }
+                    return@launch
+                }
+                if (!usuario.activo) {
+                    _state.update {
+                        it.copy(
+                            loading = false,
+                            errorMessage = "Esta cuenta se encuentra deshabilitada por administración.",
+                            successMessage = null
                         )
                     }
                     return@launch
                 }
                 if (!HashUtil.verifyPassword(pass, usuario.passwordHash)) {
                     _state.update {
-                        it.copy(loading = false, errorMessage = "La contraseña ingresada es incorrecta.")
+                        it.copy(loading = false, errorMessage = "La contraseña ingresada es incorrecta.", successMessage = null)
                     }
                     return@launch
                 }
@@ -376,12 +419,17 @@ class BiometricViewModel(
                         usuarioAutenticado = usuario,
                         metodoAutenticacion = "Verificado por Contraseña",
                         vistaActual = BiometricVista.MARKETPLACE,
-                        successMessage = "Bienvenido a EmprendePiura, ${usuario.nombre}."
+                        errorMessage = null,
+                        successMessage = null
                     )
                 }
             } catch (e: Exception) {
                 _state.update {
-                    it.copy(loading = false, errorMessage = BiometricValidator.mapearError(e, dni))
+                    it.copy(
+                        loading = false,
+                        errorMessage = BiometricValidator.mapearError(e, dni),
+                        successMessage = null
+                    )
                 }
             }
         }
@@ -399,7 +447,13 @@ class BiometricViewModel(
 
             if (usuario == null) {
                 _state.update {
-                    it.copy(errorMessage = "El DNI $dni no se encuentra registrado. Usa Regístrate.")
+                    it.copy(errorMessage = "El DNI $dni no se encuentra registrado. Usa Regístrate.", successMessage = null)
+                }
+                return@launch
+            }
+            if (!usuario.activo) {
+                _state.update {
+                    it.copy(errorMessage = "Esta cuenta se encuentra deshabilitada por administración.", successMessage = null)
                 }
                 return@launch
             }
@@ -509,7 +563,8 @@ class BiometricViewModel(
                     _state.update {
                         it.copy(
                             mostrarModalHuella = false,
-                            errorMessage = BiometricValidator.mapearError(e, user.dni)
+                            errorMessage = BiometricValidator.mapearError(e, user.dni),
+                            successMessage = null
                         )
                     }
                 }
@@ -534,7 +589,7 @@ class BiometricViewModel(
                         metodoAutenticacion = "Verificado por Huella Dactilar",
                         vistaActual = BiometricVista.MARKETPLACE,
                         errorMessage = null,
-                        successMessage = "Identidad verificada por huella. Bienvenido, ${usuario.nombre}."
+                        successMessage = null
                     )
                 }
             }
@@ -553,7 +608,13 @@ class BiometricViewModel(
 
             if (usuario == null) {
                 _state.update {
-                    it.copy(errorMessage = "El DNI $dni no se encuentra registrado. Usa Regístrate.")
+                    it.copy(errorMessage = "El DNI $dni no se encuentra registrado. Usa Regístrate.", successMessage = null)
+                }
+                return@launch
+            }
+            if (!usuario.activo) {
+                _state.update {
+                    it.copy(errorMessage = "Esta cuenta se encuentra deshabilitada por administración.", successMessage = null)
                 }
                 return@launch
             }
@@ -713,6 +774,7 @@ class BiometricViewModel(
                                 regFotoFacialUri = null,
                                 regFotoFacialBytes = null,
                                 regVectorFacial = "",
+                                errorMessage = null,
                                 successMessage = "Rostro facial actualizado correctamente."
                             )
                         }
@@ -726,7 +788,8 @@ class BiometricViewModel(
                                 regFotoFacialUri = null,
                                 regFotoFacialBytes = null,
                                 regVectorFacial = "",
-                                errorMessage = BiometricValidator.mapearError(e, user.dni)
+                                errorMessage = BiometricValidator.mapearError(e, user.dni),
+                                successMessage = null
                             )
                         }
                     }
@@ -740,6 +803,7 @@ class BiometricViewModel(
                 it.copy(
                     mostrarEscanerFacial = false,
                     procesandoRostro = false,
+                    errorMessage = null,
                     successMessage = "Rostro capturado y verificado con éxito."
                 )
             }
@@ -756,7 +820,8 @@ class BiometricViewModel(
                     usuarioAutenticado = usuario,
                     metodoAutenticacion = "Verificado por Reconocimiento Facial ($porcentaje%)",
                     vistaActual = BiometricVista.MARKETPLACE,
-                    successMessage = "Reconocimiento facial exitoso ($porcentaje%). Bienvenido, ${usuario.nombre}."
+                    errorMessage = null,
+                    successMessage = null
                 )
             }
         }
@@ -777,6 +842,19 @@ class BiometricViewModel(
         if (error != null) {
             _state.update { it.copy(errorMessage = error, successMessage = null) }
             return
+        }
+
+        val solicitaEmprendimiento = !s.esModoEdicion && s.regTipoCuenta == RolUsuario.EMPRENDEDOR
+        if (solicitaEmprendimiento) {
+            val errorTienda = MarketplaceValidator.validarSolicitudEmprendimiento(
+                nombreTienda = s.regNombreTienda,
+                telefono = s.regTelefono,
+                puntoEncuentro = s.regPuntoEntregaTienda
+            )
+            if (errorTienda != null) {
+                _state.update { it.copy(errorMessage = errorTienda, successMessage = null) }
+                return
+            }
         }
 
         viewModelScope.launch {
@@ -834,10 +912,29 @@ class BiometricViewModel(
                     repository.insertOrUpdate(context, payload)
                 }
 
-                val mensajeExito = if (s.esModoEdicion) {
-                    "Datos actualizados correctamente para \"${guardado.nombre}\"."
-                } else {
-                    "Cuenta de \"${guardado.nombre}\" creada correctamente."
+                if (solicitaEmprendimiento && guardado.id.isNotBlank()) {
+                    withContext(Dispatchers.IO) {
+                        storeRepository.registrarOSolicitarTienda(
+                            EmprendimientoWriteDto(
+                                usuarioId = guardado.id,
+                                nombreTienda = s.regNombreTienda.trim(),
+                                descripcion = s.regDescripcionTienda.trim(),
+                                categoriaPrincipal = s.regCategoriaTienda,
+                                zonaPiura = s.regZonaPiura,
+                                puntoEncuentroHabitual = s.regPuntoEntregaTienda.trim(),
+                                telefonoContacto = s.regTelefono.trim(),
+                                numeroYapePlin = s.regYapeTienda.trim().ifBlank { s.regTelefono.trim() },
+                                estado = "PENDIENTE",
+                                motivoRevision = ""
+                            )
+                        )
+                    }
+                }
+
+                val mensajeExito = when {
+                    s.esModoEdicion -> "Datos actualizados correctamente para \"${guardado.nombre}\"."
+                    solicitaEmprendimiento -> "Cuenta creada y solicitud de \"${s.regNombreTienda.trim()}\" enviada a revisión."
+                    else -> "Cuenta de \"${guardado.nombre}\" creada correctamente."
                 }
 
                 val destino = if (s.usuarioAutenticado != null && s.usuarioAutenticado.dni == guardado.dni) {
@@ -860,6 +957,12 @@ class BiometricViewModel(
                         regNombre = "",
                         regTelefono = "",
                         regCorreo = "",
+                        regTipoCuenta = RolUsuario.COMPRADOR,
+                        regNombreTienda = "",
+                        regDescripcionTienda = "",
+                        regCategoriaTienda = "Alimentos y Postres",
+                        regPuntoEntregaTienda = PiuraConstants.PUNTOS_ENCUENTRO_UNP.first(),
+                        regYapeTienda = "",
                         regContrasena = "",
                         regPasswordHashActual = "",
                         regHuellaToken = "",
@@ -867,12 +970,17 @@ class BiometricViewModel(
                         regFotoFacialBytes = null,
                         regVectorFacial = "",
                         regDniError = null,
+                        errorMessage = null,
                         successMessage = mensajeExito
                     )
                 }
             } catch (e: Exception) {
                 _state.update {
-                    it.copy(saving = false, errorMessage = BiometricValidator.mapearError(e, s.regDni))
+                    it.copy(
+                        saving = false,
+                        errorMessage = BiometricValidator.mapearError(e, s.regDni),
+                        successMessage = null
+                    )
                 }
             }
         }

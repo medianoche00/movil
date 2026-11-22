@@ -45,7 +45,7 @@ import kotlinx.coroutines.delay
 
 /*
  * Archivo: PinEntregaComponents.kt
- * Proposito: Tarjeta de PIN dinamico de 6 digitos (90 s estilo Authenticator) para el comprador
+ * Proposito: Tarjeta de PIN dinamico de 6 digitos (rotacion cada 90 s) para el comprador
  *            y dialogo de validacion antifraude para el emprendedor.
  */
 @Composable
@@ -114,7 +114,7 @@ fun DynamicDeliveryPinCard(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        // Anillo regresivo estilo Authenticator (90s)
+                        // Anillo regresivo de vigencia (90 s)
                         Box(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier.size(44.dp)
@@ -227,7 +227,7 @@ fun DynamicDeliveryPinCard(
                 modifier = Modifier.size(14.dp)
             )
             Text(
-                text = "Código de 6 dígitos estilo Authenticator. Díctalo al emprendedor solo al recibir tu pedido en mano.",
+                text = "Código de verificación dinámico de 6 dígitos. Díctalo al emprendedor solo al recibir tu pedido en mano.",
                 fontSize = 11.sp,
                 lineHeight = 15.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
